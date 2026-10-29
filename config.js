@@ -9,4 +9,4 @@
 //  Se ficar por preencher, a página mostra um aviso em vez de
 //  falhar em silêncio.
 // ============================================================
-window.API_URL = "COLA_AQUI_O_TEU_URL_EXEC";
+window.API_URL = "https://script.google.com/macros/s/AKfycbxALPyrWLqj_c_Rtj9oE40OGs0e8IppPYC6FV-uhc5fqeysPm-d_rO4giAU_3Lp9tTv/exec";
