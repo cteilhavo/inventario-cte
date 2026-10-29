@@ -1201,7 +1201,8 @@ function renderUsersTab(data){
     if (_newUserHash && u.pinHash === _newUserHash && u.ativo !== false) tr.className = 'new-user';
 
     var actions = tr.children[4];
-    actions.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;border-bottom:0';
+    actions.style.cssText = 'display:flex;gap:6px;flex-wrap:nowrap;border-bottom:0';
+    tr.children[1].style.whiteSpace = 'nowrap';
     if (u.pin){
       var mail = document.createElement('button');
       mail.textContent = '✉ Enviar PIN'; mail.className = 'btn secondary'; mail.type = 'button'; mail.style.marginTop = '0';
@@ -1226,6 +1227,23 @@ function renderUsersTab(data){
       });
       actions.appendChild(mail);
     }
+    // Promover / rebaixar aluno <-> coordenador júnior
+    if (u.role === 'aluno' || u.role === 'coordenador_junior'){
+      var subir = u.role === 'aluno';
+      var cargo = document.createElement('button');
+      cargo.type = 'button'; cargo.className = 'btn secondary'; cargo.style.marginTop = '0';
+      cargo.textContent = subir ? '↑ C. Júnior' : '↓ Aluno';
+      cargo.title = subir ? 'Passar este aluno a coordenador júnior' : 'Voltar a tratar como aluno';
+      cargo.addEventListener('click', function(){
+        var novo = subir ? 'coordenador_junior' : 'aluno';
+        u.role = novo;
+        renderAllAdminTabs();
+        toast(subir ? u.nome + ' é agora coordenador júnior.' : u.nome + ' voltou a ser aluno.');
+        bgRun_('api_adminSetUserRole', adminState.token, u.pinHash, novo);
+      });
+      actions.appendChild(cargo);
+    }
+
     var tog = document.createElement('button');
     tog.type = 'button'; tog.className = 'btn secondary'; tog.style.marginTop = '0';
     tog.textContent = u.ativo === false ? 'Reativar' : 'Desativar';
@@ -3917,17 +3935,22 @@ function salaSubmeter_(){
     sel.innerHTML = '';
     (info.motivos || []).forEach(function(m){ var o = document.createElement('option'); o.value = m; o.textContent = m; sel.appendChild(o); });
 
-    // horas de fecho (de 15 em 15 min até ao limite)
+    // horas de fecho: de 15 em 15 min, do próximo quarto de hora até ao limite
     var selH = document.getElementById('sala-fecho');
     selH.innerHTML = '';
     var agora = pcMinutos_(res.agoraLocal);
     var max = pcMinutos_(res.fimMaximo);
-    for (var t = Math.ceil((agora + 1) / 15) * 15; t <= max; t += 15){
-      var o = document.createElement('option'); o.value = pcHHMM_(t); o.textContent = pcHHMM_(t);
-      if (t >= agora + 60){ o.selected = true; selH.appendChild(o); break; }
+    var marcado = false;
+    function addHora(min){
+      var o = document.createElement('option');
+      o.value = pcHHMM_(min); o.textContent = pcHHMM_(min);
+      if (!marcado && min >= agora + 60){ o.selected = true; marcado = true; }
       selH.appendChild(o);
     }
-    if (!selH.options.length){ var o2 = document.createElement('option'); o2.value = res.fimMaximo; o2.textContent = res.fimMaximo; selH.appendChild(o2); }
+    for (var t = Math.ceil((agora + 1) / 15) * 15; t <= max; t += 15) addHora(t);
+    // O limite pode não cair num quarto de hora (ex.: 23:59) — acrescenta-o.
+    if (!selH.options.length || pcMinutos_(selH.options[selH.options.length - 1].value) < max) addHora(max);
+    if (!marcado) selH.options[selH.options.length - 1].selected = true;
 
     document.getElementById('sala-abrir').classList.toggle('hidden', !pode);
     document.getElementById('sala-fechar').classList.toggle('hidden', !aberta);

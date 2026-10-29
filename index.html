@@ -124,6 +124,16 @@
   th,td{border-bottom:1px solid var(--border); padding:9px 9px; text-align:left}
   th{font-weight:600; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); font-family:ui-monospace, "SF Mono", Consolas, monospace}
   .table-wrap{overflow-x:auto}
+  /* Tabelas mais compactas: menos altura por linha e botões mais pequenos,
+     em todas as tabelas do painel (utilizadores, stock, histórico, etc.). */
+  .table-wrap th, .table-wrap td{padding:4px 8px; font-size:12.5px; line-height:1.25}
+  .table-wrap .btn{min-height:26px; padding:3px 9px; font-size:12px; border-radius:8px; margin-top:0}
+  .table-wrap select{min-height:26px; padding:2px 6px; font-size:12.5px; border-radius:8px}
+  .table-wrap .pin-pill{font-size:12px; padding:1px 7px}
+  .table-wrap input[type="checkbox"]{width:auto}
+  /* A última coluna (ações) fica numa só linha; se não couber, a tabela desliza. */
+  .table-wrap td:last-child{white-space:nowrap}
+  .table-wrap td:last-child > div{flex-wrap:nowrap !important}
   tr.low td{background:color-mix(in srgb, var(--danger) 8%, transparent)}
   tr:hover td{background:var(--surface-hover)}
   .grid2{display:grid; grid-template-columns:1fr 1fr; gap:0 12px}
@@ -236,7 +246,8 @@
     #tab-users.active{flex-direction:row; align-items:flex-start}
     #tab-users.active{flex-wrap:wrap}
     #tab-users.active > .card:nth-child(1){flex:0 0 380px}
-    #tab-users.active > .card:nth-child(2){flex:1; min-width:0}
+    /* A lista ocupa a largura toda: a tabela tem 4 colunas + ações e não deve deslizar. */
+    #tab-users.active > .card:nth-child(2){flex:1 1 100%; min-width:0}
     #tab-users.active > .card:nth-child(3){flex:1 1 100%}
     table{font-size:13.5px}
   }
