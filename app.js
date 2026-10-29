@@ -718,29 +718,51 @@ function bootAdmin(){
   }).catch(function(){ toast('Erro de ligação.'); });
 }
 
+/* Enter submete em qualquer campo de entrada.
+ * Nota: antes não havia tratamento nenhum — o Enter só "funcionava" porque o botão
+ * ficava com o foco depois do primeiro clique. Agora é explícito e igual em todo o lado. */
+function enterSubmete_(inputId, btnId){
+  var inp = document.getElementById(inputId);
+  if (!inp) return;
+  inp.addEventListener('keydown', function(e){
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    var b = document.getElementById(btnId);
+    if (b && !b.disabled) b.click();
+  });
+}
+enterSubmete_('login-pw', 'login-submit');
+enterSubmete_('setup-pw1', 'setup-submit');
+enterSubmete_('setup-pw2', 'setup-submit');
+
 document.getElementById('setup-submit').addEventListener('click', function(){
+  var btn = this;
   var p1 = document.getElementById('setup-pw1').value.trim();
   var p2 = document.getElementById('setup-pw2').value.trim();
   var err = document.getElementById('setup-error');
   err.textContent = '';
   if (p1.length < 4){ err.textContent = 'A password tem de ter pelo menos 4 carateres.'; return; }
   if (p1 !== p2){ err.textContent = 'As passwords não coincidem.'; return; }
+  btn.disabled = true; // evita dois pedidos com Enter repetido
   gsRun('api_adminSetup', p1).then(function(res){
-    if (!res.ok){ err.textContent = 'Não foi possível definir a password.'; return; }
+    if (!res.ok){ btn.disabled = false; err.textContent = 'Não foi possível definir a password.'; return; }
     adminState.token = res.token;
     enterDashboard();
-  }).catch(function(){ err.textContent = 'Erro de ligação.'; });
+  }).catch(function(){ btn.disabled = false; err.textContent = 'Erro de ligação.'; });
 });
 
 document.getElementById('login-submit').addEventListener('click', function(){
+  var btn = this;
   var pw = document.getElementById('login-pw').value.trim();
   var err = document.getElementById('login-error');
   err.textContent = '';
+  if (!pw){ err.textContent = 'Escreve a password.'; return; }
+  btn.disabled = true;
   gsRun('api_adminLogin', pw).then(function(res){
-    if (!res.ok){ err.textContent = 'Password incorreta.'; return; }
+    if (!res.ok){ btn.disabled = false; err.textContent = 'Password incorreta.'; return; }
     adminState.token = res.token;
     enterDashboard();
-  }).catch(function(){ err.textContent = 'Erro de ligação.'; });
+  }).catch(function(){ btn.disabled = false; err.textContent = 'Erro de ligação.'; });
 });
 
 function enterDashboard(){
