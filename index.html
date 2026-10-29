@@ -465,10 +465,35 @@
     </div>
   </div>
 
-  <div id="scr-sala-stub" class="card hidden">
-    <span class="tag">sala</span>
-    <h1 class="small">Abertura de sala</h1>
-    <p class="muted">Este código identifica a sala. A abertura extraordinária (com PIN do responsável) entra na próxima fase.</p>
+  <div id="scr-sala" class="card acc-amber hidden">
+    <span class="tag">mesa do professor</span>
+    <h1 class="small" id="sala-nome">—</h1>
+    <div id="sala-estado" class="notice"></div>
+
+    <div id="sala-pin-bloco">
+      <p class="subtitle" id="sala-pin-hint">Introduz o teu PIN para abrir a sala.</p>
+      <div class="pin-dots" id="sala-pin-dots"></div>
+      <div class="keypad" id="sala-keypad"></div>
+      <div class="error center" id="sala-erro"></div>
+    </div>
+
+    <div id="sala-form" class="hidden">
+      <p class="muted" id="sala-form-info"></p>
+      <label>Motivo</label>
+      <select id="sala-motivo"></select>
+      <label>Fechar às</label>
+      <select id="sala-fecho"></select>
+      <button class="btn block" id="sala-abrir" type="button">Abrir sala</button>
+      <button class="btn danger block hidden" id="sala-fechar" type="button">Fechar a sala agora</button>
+      <div class="error" id="sala-form-erro"></div>
+    </div>
+
+    <div id="sala-ok" class="hidden">
+      <div style="font-size:40px;text-align:center;margin:10px 0">✅</div>
+      <p class="center" id="sala-ok-msg"></p>
+      <p class="muted center" id="sala-ok-sub"></p>
+      <button class="btn secondary block" id="sala-voltar" type="button">Voltar</button>
+    </div>
   </div>
 
   <div id="scr-done" class="card acc-teal center hidden">

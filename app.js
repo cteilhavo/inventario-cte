@@ -98,7 +98,7 @@ function toast(msg){
 }
 
 function show(id){
-  ['scr-loading','scr-picker','scr-pin','scr-kiosk','scr-done','scr-pc','scr-sala-stub'].forEach(function(s){
+  ['scr-loading','scr-picker','scr-pin','scr-kiosk','scr-done','scr-pc','scr-sala'].forEach(function(s){
     document.getElementById(s).classList.toggle('hidden', s !== id);
   });
 }
@@ -3785,6 +3785,225 @@ function pcTerminar_(){
 document.getElementById('pc-terminar').addEventListener('click', pcTerminar_);
 
 /* ============================================================
+   ECRÃ DA MESA DO PROFESSOR (?sala=…)
+   ============================================================ */
+var salaState = { id: window.__SALA_ID__ || '', info: null, pin: '', token: '', busy: false, login: null };
+
+function salaPintarDots_(){
+  var wrap = document.getElementById('sala-pin-dots');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  var len = Math.max(salaState.pin.length, 4);
+  for (var i = 0; i < len; i++){
+    var d = document.createElement('span');
+    if (i < salaState.pin.length) d.classList.add('filled');
+    wrap.appendChild(d);
+  }
+}
+
+function salaBuildTeclado_(){
+  var kp = document.getElementById('sala-keypad');
+  if (!kp || kp.dataset.pronto) return;
+  ['1','2','3','4','5','6','7','8','9','⌫','0','OK'].forEach(function(k){
+    var b = document.createElement('button');
+    b.type = 'button'; b.textContent = k;
+    if (k === '⌫' || k === 'OK') b.classList.add('wide');
+    b.addEventListener('click', function(){ salaTecla_(k); });
+    kp.appendChild(b);
+  });
+  kp.dataset.pronto = '1';
+}
+
+function salaTecla_(k){
+  if (salaState.busy) return;
+  if (k === '⌫'){ salaState.pin = salaState.pin.slice(0, -1); salaPintarDots_(); return; }
+  if (k === 'OK'){ salaSubmeter_(); return; }
+  if (salaState.pin.length >= 8) return;
+  salaState.pin += k;
+  salaPintarDots_();
+}
+
+var SALA_MOTIVOS_TXT = {
+  aula_em_curso: 'Há uma aula a decorrer nesta sala — não é preciso abrir.',
+  fora_do_horario: 'Fora do horário permitido para o teu perfil.',
+  fora_do_clube: 'Os coordenadores júnior só abrem a sala durante clubes/oficinas.',
+  fim_de_semana: 'Ao fim de semana só a coordenação do CTE abre a sala.',
+  sem_janela: 'Já não há tempo útil para abrir a sala.',
+  sem_permissao: 'O teu perfil não pode abrir salas.',
+  modulo_inativo: 'O módulo está desligado.'
+};
+
+function salaEstadoTexto_(info){
+  var p = [];
+  if (info.aberta){
+    p.push('Aberta por ' + (info.abertura.por || '—') + (info.abertura.motivo ? ' (' + info.abertura.motivo + ')' : '') +
+      ' até ' + pcHora_(info.abertura.fimPrevisto) + '.');
+  } else if (info.periodo){
+    var et = (info.periodo.etiquetas || []).join(' · ');
+    p.push('Aula em curso até ' + info.periodo.fim + (et ? ' (' + et + ')' : '') + '.');
+  } else {
+    p.push('Sala fechada.');
+  }
+  if (info.sessoes && info.sessoes.length){
+    p.push(info.sessoes.length + (info.sessoes.length === 1 ? ' sessão ativa: ' : ' sessões ativas: ') +
+      info.sessoes.map(function(s){ return s.computador + ' (' + s.aluno + ')'; }).join(', ') + '.');
+  }
+  return p.join(' ');
+}
+
+function salaBoot_(){
+  show('scr-sala');
+  document.getElementById('sala-nome').textContent = 'A carregar…';
+  salaState.pin = '';
+  salaState.token = '';
+  document.getElementById('sala-form').classList.add('hidden');
+  document.getElementById('sala-ok').classList.add('hidden');
+  document.getElementById('sala-pin-bloco').classList.remove('hidden');
+  document.getElementById('sala-erro').textContent = '';
+  gsRunQ('api_salaInfo', salaState.id).then(function(info){
+    if (!info || !info.ok){
+      document.getElementById('sala-nome').textContent = 'Sala';
+      document.getElementById('sala-estado').textContent = (info && info.error === 'sala_invalida') ? 'Este QR não corresponde a nenhuma sala.' : 'Não foi possível ler a sala.';
+      document.getElementById('sala-estado').className = 'notice late';
+      document.getElementById('sala-pin-bloco').classList.add('hidden');
+      return;
+    }
+    salaState.info = info;
+    document.getElementById('sala-nome').textContent = info.sala.nome;
+    var est = document.getElementById('sala-estado');
+    est.textContent = salaEstadoTexto_(info);
+    est.className = 'notice' + (info.aberta ? '' : ' late');
+    salaPintarDots_();
+    salaBuildTeclado_();
+    salaState.busy = false;
+  }).catch(function(){
+    document.getElementById('sala-nome').textContent = 'Sala';
+    document.getElementById('sala-estado').textContent = 'Erro de ligação.';
+    document.getElementById('sala-estado').className = 'notice late';
+  });
+}
+
+function salaSubmeter_(){
+  if (salaState.busy) return;
+  var erro = document.getElementById('sala-erro');
+  erro.textContent = '';
+  if (salaState.pin.length < 4){ erro.textContent = 'PIN demasiado curto.'; return; }
+  salaState.busy = true;
+  gsRun('api_salaLogin', salaState.id, salaState.pin).then(function(res){
+    salaState.busy = false;
+    if (!res.ok){
+      salaState.pin = ''; salaPintarDots_();
+      if (res.locked){ erro.textContent = 'Demasiadas tentativas. Tenta daqui a ' + (res.lockSeconds || 60) + 's.'; return; }
+      if (res.attemptsLeft){ erro.textContent = 'PIN não reconhecido. Restam ' + res.attemptsLeft + ' tentativa' + (res.attemptsLeft === 1 ? '' : 's') + '.'; return; }
+      erro.textContent = 'Não foi possível entrar.';
+      return;
+    }
+    salaState.token = res.token;
+    salaState.login = res;
+    var info = salaState.info || {};
+    var pode = res.podeAbrir;
+    var aberta = !!(info.aberta);
+    if (!pode && !aberta){
+      erro.textContent = SALA_MOTIVOS_TXT[res.motivo] || 'Não podes abrir a sala agora.';
+      salaState.pin = ''; salaPintarDots_();
+      return;
+    }
+    document.getElementById('sala-pin-bloco').classList.add('hidden');
+    document.getElementById('sala-form').classList.remove('hidden');
+    document.getElementById('sala-form-erro').textContent = '';
+
+    // lista de motivos
+    var sel = document.getElementById('sala-motivo');
+    sel.innerHTML = '';
+    (info.motivos || []).forEach(function(m){ var o = document.createElement('option'); o.value = m; o.textContent = m; sel.appendChild(o); });
+
+    // horas de fecho (de 15 em 15 min até ao limite)
+    var selH = document.getElementById('sala-fecho');
+    selH.innerHTML = '';
+    var agora = pcMinutos_(res.agoraLocal);
+    var max = pcMinutos_(res.fimMaximo);
+    for (var t = Math.ceil((agora + 1) / 15) * 15; t <= max; t += 15){
+      var o = document.createElement('option'); o.value = pcHHMM_(t); o.textContent = pcHHMM_(t);
+      if (t >= agora + 60){ o.selected = true; selH.appendChild(o); break; }
+      selH.appendChild(o);
+    }
+    if (!selH.options.length){ var o2 = document.createElement('option'); o2.value = res.fimMaximo; o2.textContent = res.fimMaximo; selH.appendChild(o2); }
+
+    document.getElementById('sala-abrir').classList.toggle('hidden', !pode);
+    document.getElementById('sala-fechar').classList.toggle('hidden', !aberta);
+    document.getElementById('sala-form-info').textContent = aberta
+      ? 'A sala já está aberta. Podes fechá-la agora ou substituir a abertura.'
+      : 'Podes abrir até às ' + res.fimMaximo + '.';
+  }).catch(function(){
+    salaState.busy = false;
+    erro.textContent = 'Erro de ligação. Tenta outra vez.';
+  });
+}
+
+function pcMinutos_(h){ var m = /^(\d{1,2}):(\d{2})$/.exec(String(h || '')); return m ? (Number(m[1]) * 60 + Number(m[2])) : 0; }
+function pcHHMM_(min){ var p = function(n){ return (n < 10 ? '0' : '') + n; }; return p(Math.floor(min / 60)) + ':' + p(min % 60); }
+
+function salaAbrir_(){
+  var btn = document.getElementById('sala-abrir');
+  var erro = document.getElementById('sala-form-erro');
+  erro.textContent = '';
+  btn.disabled = true;
+  var motivo = document.getElementById('sala-motivo').value;
+  var fecho = document.getElementById('sala-fecho').value;
+  gsRun('api_salaAbrir', salaState.token, motivo, fecho).then(function(res){
+    btn.disabled = false;
+    if (!res.ok){
+      var m = {
+        motivo_em_falta: 'Escolhe o motivo.',
+        motivo_invalido: 'Motivo inválido.',
+        fecho_no_passado: 'A hora de fecho já passou.',
+        fecho_demasiado_tarde: 'A hora de fecho é depois do limite' + (res.fimMaximo ? ' (' + res.fimMaximo + ')' : '') + '.',
+        aula_em_curso: 'Há uma aula a decorrer — a sala já está em utilização.',
+        fora_do_horario: 'Fora do horário permitido.',
+        fora_do_clube: 'Só durante clubes/oficinas.',
+        sem_permissao: 'O teu perfil não pode abrir salas.',
+        sessao_invalida: 'Sessão expirada. Introduz o PIN outra vez.',
+        ocupado: 'O sistema está ocupado. Tenta outra vez.'
+      };
+      erro.textContent = m[res.error] || 'Não foi possível abrir a sala.';
+      if (res.error === 'sessao_invalida') salaBoot_();
+      return;
+    }
+    document.getElementById('sala-form').classList.add('hidden');
+    document.getElementById('sala-ok').classList.remove('hidden');
+    document.getElementById('sala-ok-msg').textContent = 'Sala aberta.';
+    document.getElementById('sala-ok-sub').textContent = res.abertura.motivo + ' · fecha às ' + pcHora_(res.abertura.fimPrevisto) + '. Podes fechar antes, voltando a ler este QR.';
+    playConfirmSound();
+  }).catch(function(){ btn.disabled = false; erro.textContent = 'Erro de ligação. Tenta outra vez.'; });
+}
+
+function salaFechar_(){
+  var btn = document.getElementById('sala-fechar');
+  var erro = document.getElementById('sala-form-erro');
+  erro.textContent = '';
+  if (!confirm('Fechar a sala agora? As sessões ativas terminam.')) return;
+  btn.disabled = true;
+  gsRun('api_salaFechar', salaState.token).then(function(res){
+    btn.disabled = false;
+    if (!res.ok){
+      erro.textContent = res.error === 'sem_permissao_fechar' ? 'Só quem abriu a sala (ou a coordenação) a pode fechar.'
+        : res.error === 'sem_abertura' ? 'A sala já não está aberta.' : 'Não foi possível fechar.';
+      return;
+    }
+    document.getElementById('sala-form').classList.add('hidden');
+    document.getElementById('sala-ok').classList.remove('hidden');
+    document.getElementById('sala-ok-msg').textContent = 'Sala fechada.';
+    document.getElementById('sala-ok-sub').textContent = res.sessoesFechadas
+      ? res.sessoesFechadas + ' sessão(ões) terminada(s).'
+      : 'Não havia sessões ativas.';
+  }).catch(function(){ btn.disabled = false; erro.textContent = 'Erro de ligação. Tenta outra vez.'; });
+}
+
+document.getElementById('sala-abrir').addEventListener('click', salaAbrir_);
+document.getElementById('sala-fechar').addEventListener('click', salaFechar_);
+document.getElementById('sala-voltar').addEventListener('click', salaBoot_);
+
+/* ============================================================
    ARRANQUE — só agora, com tudo já definido acima
    ============================================================ */
 var ICON_SUN = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
@@ -3814,7 +4033,7 @@ if (window.__IS_ADMIN__){
 } else if (window.__PC_ID__){
   pcBoot_();
 } else if (window.__SALA_ID__){
-  show('scr-sala-stub'); // a abertura de sala chega na Fase 6
+  salaBoot_();
 } else {
   bootKiosk();
 }
