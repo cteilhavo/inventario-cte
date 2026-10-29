@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<script>(function(){var t="light";try{t=localStorage.getItem("cte-theme")||"light";}catch(e){}document.documentElement.setAttribute("data-theme",t==="dark"?"dark":"light");})();</script>
+<title>Inventário CTE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F4F4F1; --surface:#FFFFFF; --surface-2:#F0F0EC; --surface-hover:#E8E8E2;
+    --border:#E0DFD8; --border-strong:#C6C5BC;
+    --ink:#1D2433; --ink-soft:#434B5E; --ink-faint:#5E6574;
+    --mint:#1F3A93; --mint-dim:#DDE4F7; --mint-ink:#FFFFFF;
+    --amber:#E2A91F; --amber-dim:#FBF0D0;
+    --danger:#B3341E; --danger-dim:#FBE3DC; --danger-ink:#FFFFFF;
+    --cnt:#D7F0E3; --cnt-ink:#0B5C3A;
+    --shadow:0 8px 24px rgba(29,36,51,.08);
+    --overlay:rgba(244,244,241,.65);
+    color-scheme:light;
+  }
+  :root[data-theme="dark"]{
+    --bg:#0E1322; --surface:#151C33; --surface-2:#1C2542; --surface-hover:#243055;
+    --border:#2A3560; --border-strong:#3C4A82;
+    --ink:#E9EDF9; --ink-soft:#B6BFDD; --ink-faint:#8F9AC4;
+    --mint:#8FA6FF; --mint-dim:#25305C; --mint-ink:#0B1230;
+    --amber:#E6B440; --amber-dim:#3A3015;
+    --danger:#FF9783; --danger-dim:#43201C; --danger-ink:#2B0E09;
+    --cnt:#16392C; --cnt-ink:#8FE3B8;
+    --shadow:0 12px 30px rgba(0,0,0,.45);
+    --overlay:rgba(14,19,34,.6);
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height:100vh; line-height:1.5;
+  }
+  .stage{max-width:560px; margin:0 auto; padding:58px 16px 50px}
+  .stage.wide{max-width:none}
+  .card{
+    background:var(--surface); color:var(--ink); border-radius:8px; padding:24px 22px;
+    box-shadow:var(--shadow); border:1px solid var(--border); position:relative;
+  }
+  .card.acc-amber, .card.acc-teal, .card.acc-rust{border-color:var(--border)}
+  .tag{
+    display:inline-block; background:var(--surface-2); color:var(--ink-faint);
+    border:1px solid var(--border); font-family:ui-monospace, "SF Mono", Consolas, monospace;
+    font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; padding:3px 9px; border-radius:4px;
+    margin-bottom:14px;
+  }
+  h1{
+    font-family:"Outfit", sans-serif; font-weight:700; color:var(--ink); letter-spacing:-.01em;
+    font-size:clamp(20px,5vw,26px); margin:0 0 4px; text-align:center;
+  }
+  h1.small{text-align:left; font-size:19px}
+  .subtitle{color:var(--ink-soft); text-align:center; font-size:13px; margin:0 0 20px}
+  h2{font-family:"Outfit", sans-serif; font-weight:700; font-size:18px; margin:4px 0 12px; letter-spacing:-.01em}
+  h3{font-size:11.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-faint); margin:16px 0 6px; font-family:ui-monospace, "SF Mono", Consolas, monospace}
+  p{font-size:14px; margin:.5em 0; color:var(--ink-soft)}
+  label{display:block; font-size:11.5px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; color:var(--ink-faint); margin:10px 0 4px}
+  input, select, textarea{
+    width:100%; font-family:inherit; font-size:14px; padding:9px 10px; border-radius:5px;
+    border:1px solid var(--border-strong); background:var(--surface-2); color:var(--ink);
+  }
+  textarea{resize:vertical; min-height:56px}
+  input:focus, select:focus, textarea:focus{outline:none; border-color:var(--mint); box-shadow:0 0 0 3px var(--mint-dim)}
+  .btn{
+    font-family:ui-monospace, "SF Mono", Consolas, monospace; font-weight:700; font-size:12px; letter-spacing:.03em;
+    text-transform:uppercase; border-radius:5px; padding:10px 16px; border:1px solid var(--mint);
+    background:var(--mint); color:var(--mint-ink); cursor:pointer; margin-top:12px;
+  }
+  .btn.secondary{background:transparent; color:var(--ink-soft); border-color:var(--border-strong)}
+  .btn.danger{background:transparent; color:var(--danger); border-color:var(--danger)}
+  .btn.amber{background:var(--amber); color:#241705; border-color:var(--amber)}
+  .btn.block{display:block; width:100%; text-align:center}
+  .btn:disabled{opacity:.4; cursor:not-allowed}
+  .btn:hover:not(:disabled){filter:brightness(1.12)}
+  .error{color:var(--danger); font-size:13px; margin-top:8px; min-height:1.2em}
+  .muted{color:var(--ink-faint); font-size:12.5px}
+  .center{text-align:center}
+  .hidden{display:none !important}
+
+  /* PIN pad */
+  .pin-dots{display:flex; justify-content:center; gap:10px; margin:18px 0}
+  .pin-dots span{width:14px; height:14px; border-radius:50%; border:1.5px solid var(--border-strong); background:var(--surface-2)}
+  .pin-dots span.filled{background:var(--mint); border-color:var(--mint)}
+  .keypad{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-width:280px; margin:0 auto}
+  .keypad button{
+    font-family:ui-monospace, "SF Mono", Consolas, monospace; font-size:20px; font-weight:600;
+    padding:16px 0; border-radius:6px; border:1px solid var(--border-strong); background:var(--surface-2);
+    color:var(--ink); cursor:pointer;
+  }
+  .keypad button:active{background:var(--mint); color:var(--mint-ink); border-color:var(--mint)}
+  .keypad button.wide{font-size:11px}
+
+  /* kiosk items */
+  .item-card{
+    background:var(--surface-2); border:1px solid var(--border); border-radius:6px;
+    padding:12px 14px; margin:10px 0;
+  }
+  .item-card .row1{display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap}
+  .item-card b{font-size:14.5px; font-weight:600}
+  .badge{font-family:ui-monospace, "SF Mono", Consolas, monospace; font-size:10px; font-weight:600; padding:2px 8px; border-radius:99px; text-transform:uppercase; letter-spacing:.04em; border:1px solid}
+  .badge.cat{background:var(--mint-dim); color:var(--mint); border-color:transparent}
+  .badge.low{background:var(--danger-dim); color:var(--danger); border-color:transparent}
+  .item-card .saldo{font-size:12.5px; color:var(--ink-faint)}
+  .qty-row{display:flex; gap:8px; margin-top:8px}
+  .qty-row input{flex:1}
+  .qty-row button{flex:none; margin-top:0}
+  .hold-card{background:var(--amber-dim); border:1px solid var(--amber); color:var(--ink); border-radius:6px; padding:10px 14px; margin:8px 0; display:flex; justify-content:space-between; align-items:center; gap:10px}
+  .hold-card button{margin-top:0}
+
+  /* tabs (admin) */
+  .panel{display:none}
+  .panel.active{display:block}
+  table{border-collapse:collapse; width:100%; font-size:12.8px; margin-top:10px}
+  th,td{border-bottom:1px solid var(--border); padding:9px 9px; text-align:left}
+  th{font-weight:600; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); font-family:ui-monospace, "SF Mono", Consolas, monospace}
+  .table-wrap{overflow-x:auto}
+  tr.low td{background:color-mix(in srgb, var(--danger) 8%, transparent)}
+  tr:hover td{background:var(--surface-hover)}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:0 12px}
+  .grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 12px}
+  @media (max-width:560px){.grid2,.grid3{grid-template-columns:1fr}}
+  .cab-block{background:var(--surface-2); border:1px solid var(--border); border-radius:6px; padding:12px 14px; margin:12px 0}
+  .cab-block .head{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px}
+  .qr-box{display:none; text-align:center; margin-top:10px; background:#fff; padding:14px; border-radius:6px}
+  .qr-box.open{display:block}
+  .qr-box svg{max-width:170px; height:auto}
+  .qr-box .link{font-family:ui-monospace, "SF Mono", Consolas, monospace; font-size:10.5px; color:#0a0d0d; word-break:break-all; margin-top:8px}
+  .toast{
+    position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--surface-2);
+    color:var(--ink); border:1px solid var(--mint); padding:10px 18px; border-radius:6px;
+    font-size:13px; z-index:50; opacity:0; pointer-events:none; transition:opacity .25s ease; max-width:90vw; text-align:center;
+  }
+  .toast.show{opacity:1}
+  /* PIN gerado automaticamente */
+  .pin-pill{
+    display:inline-block; font-family:ui-monospace, "SF Mono", Consolas, monospace; font-weight:700;
+    font-size:14px; letter-spacing:.14em; color:var(--mint); background:var(--mint-dim);
+    border:1px solid var(--mint); border-radius:5px; padding:2px 10px;
+  }
+  tr.new-user td{background:color-mix(in srgb, var(--mint) 9%, transparent)}
+  .created-box{
+    margin-top:12px; padding:12px 14px; border:1px solid var(--mint); border-radius:6px;
+    background:var(--mint-dim); color:var(--ink); font-size:14px;
+  }
+  .spinner{width:32px;height:32px;border-radius:50%;border:3px solid var(--border-strong);border-top-color:var(--mint);animation:spin 0.8s linear infinite;margin:30px auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  footer{text-align:center; color:var(--ink-faint); font-family:ui-monospace, "SF Mono", Consolas, monospace; font-size:10.5px; letter-spacing:.06em; padding:18px 0 4px; text-transform:uppercase}
+
+  /* overlay de carregamento — só aparece se uma ação demorar mais de 1s */
+  .global-loading{
+    position:fixed; inset:0; z-index:999; display:flex; align-items:center; justify-content:center;
+    background:var(--overlay); backdrop-filter:blur(1px);
+  }
+  .global-loading-spinner{
+    width:40px; height:40px; border-radius:50%; border:3px solid var(--border-strong);
+    border-top-color:var(--mint); animation:spin 0.8s linear infinite;
+  }
+
+  /* equipamento danificado: caixa bem visível + questionário */
+  .dmg-toggle{
+    display:flex !important; align-items:center; gap:12px; margin-top:12px; padding:14px;
+    border:2px solid var(--danger); border-radius:8px; background:var(--danger-dim); color:var(--ink);
+    font-size:15px !important; font-weight:700 !important; text-transform:none !important; letter-spacing:0 !important; cursor:pointer;
+  }
+  .dmg-toggle input{width:28px !important; height:28px; flex:none; margin:0; accent-color:var(--danger)}
+  .dmg-toggle:has(input:checked){background:var(--danger); border-color:var(--danger); color:var(--danger-ink)}
+  .dmg-form{margin-top:10px; padding:12px 14px; border:1px solid var(--danger); border-radius:8px; background:var(--surface)}
+  .dmg-title{margin:0 0 4px; font-weight:600; color:var(--ink); font-size:14px}
+  .dmg-opts{display:flex; gap:8px; flex-wrap:wrap}
+  .dmg-opt{
+    display:flex !important; align-items:center; gap:8px; padding:9px 12px; margin:0 !important; cursor:pointer;
+    border:1px solid var(--border-strong); border-radius:6px; background:var(--surface-2);
+    color:var(--ink) !important; font-size:14px !important; font-weight:500 !important; text-transform:none !important; letter-spacing:0 !important;
+  }
+  .dmg-opt input{width:auto; margin:0}
+  .dmg-opt:has(input:checked){border-color:var(--mint); background:var(--mint-dim)}
+
+  /* gráficos */
+  .chart-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap:14px}
+  .vbars{display:flex; align-items:stretch; gap:8px; height:190px; margin-top:12px}
+  .vbar{flex:1; min-width:0; display:flex; flex-direction:column; align-items:center}
+  .vbar .plot{flex:1; width:100%; position:relative}
+  .vbar .fill{position:absolute; left:50%; bottom:0; transform:translateX(-50%); width:70%; max-width:56px; background:var(--mint); border-radius:4px 4px 0 0; min-height:2px}
+  .vbar .val{position:absolute; left:0; right:0; text-align:center; font-family:ui-monospace, "SF Mono", Consolas, monospace; font-size:11px; color:var(--ink-soft)}
+  .vbar .lbl{font-size:10.5px; color:var(--ink-faint); margin-top:6px; white-space:nowrap}
+  .hrow{display:grid; grid-template-columns:minmax(80px, 38%) 1fr auto; gap:8px; align-items:center; margin:7px 0; font-size:12.5px}
+  .hrow .hlabel{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .hrow .htrack{background:var(--surface-2); border-radius:4px; height:14px; overflow:hidden}
+  .hrow .hfill{height:100%; background:var(--mint); border-radius:4px; min-width:2px}
+  .hrow .hval{font-family:ui-monospace, "SF Mono", Consolas, monospace; font-size:11.5px; color:var(--ink-soft)}
+  .chart-empty{color:var(--ink-faint); font-size:13px; padding:14px 0}
+  tr.inactive td{opacity:.55}
+  .badge.off{background:var(--surface-2); color:var(--ink-faint); border-color:var(--border-strong)}
+  .state-ok{color:var(--mint)} .state-bad{color:var(--danger)}
+
+  .notice{margin-top:10px; padding:10px 12px; border-radius:10px; border:1px solid var(--border-strong); background:var(--surface-2); font-size:13.5px; line-height:1.4}
+  .notice.late{border-color:var(--danger); background:var(--danger-dim)}
+  .loan-form{margin-top:8px; padding:12px; border:1px dashed var(--border-strong); border-radius:10px; background:var(--surface)}
+
+  /* botão de alternar tema claro / escuro */
+  .theme-toggle{
+    position:fixed; top:10px; right:10px; z-index:60; width:40px; height:40px; border-radius:50%;
+    border:1px solid var(--border-strong); background:var(--surface-2); color:var(--ink);
+    font-size:18px; line-height:1; cursor:pointer; box-shadow:var(--shadow); padding:0;
+  }
+  .theme-toggle:hover{border-color:var(--mint)}
+
+  /* painéis com espaçamento uniforme */
+  .panel.active{display:flex; flex-direction:column; gap:14px}
+  .panel > .card{margin-top:0 !important}
+
+  /* administração: ocupa a largura disponível do ecrã */
+  #admin-root.stage{max-width:none; padding:0}
+  #scr-admin-setup, #scr-admin-login{max-width:460px; width:calc(100% - 32px); margin:8vh auto 0}
+  .cabs-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap:14px}
+  .cabs-grid .cab-block{margin:0}
+  .sala-sec{margin:0 0 26px}
+  .sala-head{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; padding:0 2px 10px; margin-bottom:12px; border-bottom:2px solid var(--mint)}
+  .sala-head h2{margin:0}
+  .sala-new{display:flex; gap:8px; margin-bottom:12px}
+  .sala-new input{flex:1; margin:0}
+  .sala-new .btn{margin:0}
+  .mob-sala-row td{background:var(--mint-dim); color:var(--mint); font-weight:700; border-bottom:0}
+
+  @media (min-width:1000px){
+    #tab-users.active{flex-direction:row; align-items:flex-start}
+    #tab-users.active{flex-wrap:wrap}
+    #tab-users.active > .card:nth-child(1){flex:0 0 380px}
+    #tab-users.active > .card:nth-child(2){flex:1; min-width:0}
+    #tab-users.active > .card:nth-child(3){flex:1 1 100%}
+    table{font-size:13.5px}
+  }
+  @media (min-width:1400px){
+    table{font-size:14.5px}
+    th,td{padding:11px 12px}
+    .grid3{gap:0 18px}
+    .card{padding:28px 28px}
+  }
+
+  /* quiosque em tablets / computadores: maior e mais legível */
+  @media (min-width:900px){
+    .stage{max-width:680px}
+    .keypad{max-width:360px; gap:12px}
+    .keypad button{padding:20px 0; font-size:24px}
+    .pin-dots span{width:16px; height:16px}
+    .item-card{padding:14px 16px}
+    p{font-size:15px}
+  }
+
+  /* telemóveis pequenos */
+  @media (max-width:560px){
+    .qty-row{flex-wrap:wrap}
+    .qty-row input{min-width:120px}
+  }
+  @media (max-width:380px){
+    .card{padding:18px 14px}
+    .stage{padding-left:10px; padding-right:10px}
+  }
+
+  /* ===== identidade "Laboratório" (paleta C) ===== */
+  .card{border-radius:14px}
+  input, select, textarea{border-radius:10px}
+  .btn{font-family:inherit; font-weight:600; font-size:14px; letter-spacing:0; text-transform:none; border-radius:10px; padding:10px 18px; min-height:40px}
+  label{font-size:13px; letter-spacing:0; text-transform:none; color:var(--ink-soft)}
+  .tag{border-radius:99px; text-transform:none; letter-spacing:0; font-size:12px; padding:3px 11px}
+  .keypad button{font-size:24px; border-radius:12px; font-weight:600}
+  .item-card, .hold-card, .cab-block{border-radius:12px}
+  .pin-dots span.filled{box-shadow:0 0 0 3px var(--mint-dim)}
+
+  /* ===== painel: menu lateral retrátil (no telemóvel: barra em baixo, sempre retraída) ===== */
+  .ic{width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none}
+  .shell{display:grid; grid-template-columns:var(--navw, 244px) 1fr; min-height:100vh; transition:grid-template-columns .18s ease}
+  .shell.collapsed{--navw:76px}
+  .sidenav{position:sticky; top:0; height:100vh; box-sizing:border-box; display:flex; flex-direction:column; gap:2px; padding:16px 12px;
+    background:var(--surface); border-right:1px solid var(--border); overflow-y:auto; overflow-x:hidden; z-index:30}
+  .nav-top{display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 4px 14px; min-height:36px}
+  .brand{font-weight:700; font-size:17px; white-space:nowrap}
+  .icon-btn{width:34px; height:34px; border-radius:9px; border:1px solid var(--border); background:var(--surface-2); color:var(--ink); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; flex:none}
+  .icon-btn:hover{border-color:var(--mint)}
+  .shell.collapsed #nav-collapse .ic{transform:rotate(180deg)}
+  .nav{display:flex; flex-direction:column; gap:2px}
+  .nav-group{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint); margin:16px 10px 6px; white-space:nowrap}
+  .nav-foot{margin-top:auto; padding-top:10px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:2px}
+  .tab-btn, .nav-btn, .theme-toggle.in-menu{
+    display:flex; align-items:center; gap:12px; width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px; border:0; background:transparent;
+    color:var(--ink); font-weight:500; font-size:14px; line-height:1.2; font-family:inherit; cursor:pointer; text-align:left; position:relative; white-space:nowrap;
+  }
+  .tab-btn:hover, .nav-btn:hover, .theme-toggle.in-menu:hover{background:var(--surface-hover)}
+  .tab-btn.active{background:var(--mint); color:var(--mint-ink); font-weight:600}
+  .cnt{margin-left:auto; font-style:normal; font-size:12px; font-weight:700; background:var(--cnt); color:var(--cnt-ink); border-radius:99px; padding:2px 8px; min-width:20px; text-align:center}
+  .tab-btn.active .cnt{background:rgba(255,255,255,.22); color:inherit}
+  :root[data-theme="dark"] .tab-btn.active .cnt{background:rgba(0,0,0,.18)}
+  .theme-toggle .lbl, .theme-toggle .sw{display:none}
+  .theme-toggle.in-menu{position:static; top:auto; right:auto; width:100%; height:auto; box-shadow:none; z-index:auto}
+  .theme-toggle.in-menu .lbl{display:inline}
+  .theme-toggle.in-menu .sw{display:block; margin-left:auto; width:36px; height:20px; border-radius:99px; background:var(--border-strong); position:relative; flex:none}
+  .theme-toggle.in-menu .sw:after{content:""; position:absolute; top:3px; left:3px; width:14px; height:14px; border-radius:50%; background:#fff; transition:left .15s}
+  :root[data-theme="dark"] .theme-toggle.in-menu .sw{background:var(--mint)}
+  :root[data-theme="dark"] .theme-toggle.in-menu .sw:after{left:19px}
+  .shell.collapsed .brand, .shell.collapsed .nav-group, .shell.collapsed .lbl, .shell.collapsed .sw{display:none !important}
+  .shell.collapsed .nav-top{justify-content:center}
+  .shell.collapsed .tab-btn, .shell.collapsed .nav-btn, .shell.collapsed .theme-toggle.in-menu{justify-content:center; padding:11px 0}
+  .shell.collapsed .cnt{position:absolute; top:2px; right:6px; font-size:10px; padding:1px 5px; min-width:0}
+  .content{padding:22px clamp(14px, 2.5vw, 40px) 40px; min-width:0}
+  .topbar{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:18px}
+  .topbar h1{text-align:left; margin:0; font-size:26px}
+  .goto{position:relative; width:min(380px, 100%)}
+  .goto input{padding:10px 14px}
+  .goto-results{position:absolute; left:0; right:0; top:calc(100% + 6px); background:var(--surface); border:1px solid var(--border-strong); border-radius:12px; box-shadow:var(--shadow); z-index:40; overflow:hidden}
+  .goto-results button{display:block; width:100%; text-align:left; padding:10px 14px; border:0; background:transparent; color:var(--ink); font:inherit; font-size:14px; cursor:pointer}
+  .goto-results button:hover, .goto-results button.sel{background:var(--surface-hover)}
+  .goto-results small{color:var(--ink-faint); margin-left:8px}
+  .home-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:14px}
+  .home-tile{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px; text-align:left; color:var(--ink); font:inherit; cursor:pointer; box-shadow:var(--shadow)}
+  .home-tile:hover{border-color:var(--mint)}
+  .home-tile .n{display:block; font-size:34px; font-weight:700; color:var(--mint); line-height:1.1}
+  .home-tile b{display:block; margin-top:4px; font-size:15px}
+  .home-tile small{color:var(--ink-faint); font-size:13px}
+  .home-tile.warn .n{color:var(--danger)}
+  .home-row{display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); font-size:14px}
+  .home-row:last-child{border-bottom:0}
+  .home-row em{font-style:normal; font-weight:700; color:var(--danger); white-space:nowrap}
+
+  @media (max-width:760px){
+    .shell{display:block}
+    .sidenav{position:fixed; left:0; right:0; bottom:0; top:auto; height:auto; flex-direction:row; align-items:center; gap:2px;
+      padding:6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); border-right:0; border-top:1px solid var(--border); overflow-x:auto; overflow-y:hidden;
+      box-shadow:0 -6px 20px rgba(0,0,0,.08)}
+    .nav, .nav-foot{display:contents}
+    .nav-top, .nav-group, .brand, .lbl, .sw{display:none !important}
+    .tab-btn, .nav-btn, .theme-toggle.in-menu{flex:0 0 auto; width:auto; min-width:48px; height:48px; justify-content:center; padding:0 12px}
+    .cnt{position:absolute; top:3px; right:4px; font-size:10px; padding:1px 5px; min-width:0; margin:0}
+    .content{padding-bottom:92px}
+    .topbar h1{font-size:22px}
+    .toast{bottom:84px}
+    .nav-foot{border:0}
+  }
+  /* área do professor */
+  #prof-root.stage{max-width:none; padding:0}
+  #scr-prof-login{max-width:420px; width:calc(100% - 32px); margin:8vh auto 0}
+  .prof-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap:12px}
+
+  /* ===== computadores: etiquetas para impressão ===== */
+  #print-area{display:none}
+  #print-area .pc-label{
+    display:inline-block; vertical-align:top; width:52mm; height:52mm; margin:2mm; padding:3mm;
+    border:1px solid #9aa0aa; border-radius:3mm; text-align:center; box-sizing:border-box;
+    page-break-inside:avoid; break-inside:avoid; overflow:hidden; color:#111;
+  }
+  #print-area .pc-label .nome{
+    font-family:Arial,Helvetica,sans-serif; font-weight:700; font-size:13pt; line-height:1.1; margin:0 0 1mm;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;   /* nunca ocupa duas linhas */
+  }
+  #print-area .pc-label .qr{width:32mm; height:32mm; margin:0 auto; display:block}
+  #print-area .pc-label .qr svg{width:32mm; height:32mm; display:block}
+  /* Etiqueta larga: para títulos compridos (ex.: "Mesa do professor") */
+  #print-area .pc-label.grande{width:96mm}
+  #print-area .pc-label.grande .nome{font-size:17pt}
+  #print-area .pc-label.grande .sub{font-size:9pt}
+  #print-area .pc-label .sub{font-family:Arial,Helvetica,sans-serif; font-size:7.5pt; color:#333; line-height:1.15; margin:1mm 0 0}
+  @media print{
+    @page{size:A4; margin:10mm}
+    /* display:none (e não visibility:hidden) para o resto da página não ocupar espaço
+       e não gerar folhas em branco. */
+    body > *:not(#print-area){display:none !important}
+    #print-area{display:block !important}
+  }
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" id="theme-toggle" type="button" title="Alternar tema claro / escuro" aria-label="Alternar tema claro / escuro"></button>
+
+<!-- ============================================================= -->
+<!-- ==========================  QUIOSQUE  ======================== -->
+<!-- ============================================================= -->
+<div id="kiosk-root" class="stage">
+
+  <div id="scr-loading" class="card center">
+    <div class="spinner"></div>
+    <p class="muted">A carregar…</p>
+  </div>
+
+  <div id="scr-picker" class="card hidden">
+    <span class="tag">quiosque</span>
+    <h1 class="small">Escolher valência</h1>
+    <p class="muted">Normalmente chegas aqui digitalizando o QR colado na valência. Podes também escolher manualmente:</p>
+    <label>Valência / estação</label>
+    <input type="text" id="picker-search" placeholder="🔍 Pesquisar valência…" autocomplete="off">
+    <select id="picker-select" style="margin-top:8px"></select>
+    <p class="muted hidden" id="picker-empty">Nenhuma valência encontrada.</p>
+    <button class="btn block" id="picker-go" type="button">Continuar</button>
+  </div>
+
+  <div id="scr-pin" class="card acc-teal hidden">
+    <span class="tag">identificação</span>
+    <h1>Quem és tu?</h1>
+    <p class="subtitle" id="pin-cabinet-label">—</p>
+    <div class="pin-dots" id="pin-dots"></div>
+    <div class="keypad" id="keypad"></div>
+    <div class="error center" id="pin-error"></div>
+    <p class="center muted" id="pin-hint" style="margin-top:10px">O teu PIN pessoal identifica-te como professor ou aluno.</p>
+  </div>
+
+  <div id="scr-kiosk" class="card acc-amber hidden">
+    <span class="tag" id="kiosk-tag">valência</span>
+    <h1 class="small" id="kiosk-cabinet-name">—</h1>
+    <p class="muted" id="kiosk-user-line">—</p>
+
+    <div id="kiosk-choice">
+      <p class="muted">O que pretendes fazer?</p>
+      <button class="btn block" id="btn-go-request" type="button">📦 Requisitar material</button>
+      <button class="btn amber block" id="btn-go-return" type="button">↩️ Devolvidos</button>
+      <button class="btn secondary block hidden" id="btn-go-prof" type="button">🔎 Pesquisar todo o inventário (área do professor)</button>
+      <div id="kiosk-notices"></div>
+    </div>
+
+    <div id="kiosk-request" class="hidden">
+      <button class="btn secondary" id="request-back" type="button">← Voltar</button>
+      <h3>Material disponível nesta valência</h3>
+      <input type="text" id="kiosk-search" placeholder="🔍 Pesquisar material…" autocomplete="off">
+      <div id="kiosk-request-items"></div>
+    </div>
+
+    <div id="kiosk-return" class="hidden">
+      <button class="btn secondary" id="return-back" type="button">← Voltar</button>
+      <h3>Por devolver (material que requisitaste)</h3>
+      <div id="kiosk-return-items"></div>
+      <h3>Devolvidos hoje</h3>
+      <p class="muted">Se um equipamento já foi devolvido (por ti ou pelo administrador) mas está danificado, assinala-o aqui, no próprio dia.</p>
+      <div id="kiosk-returned-today"></div>
+    </div>
+
+    <button class="btn secondary block" id="kiosk-logout" type="button">Terminar sessão</button>
+  </div>
+
+  <div id="scr-pc-stub" class="card hidden">
+    <span class="tag">computadores</span>
+    <h1 class="small">Ainda não disponível</h1>
+    <p class="muted">Este código QR pertence ao módulo de computadores. A leitura do posto e o registo de utilização entram na próxima atualização.</p>
+  </div>
+
+  <div id="scr-done" class="card acc-teal center hidden">
+    <span class="tag">registado</span>
+    <div style="font-size:40px; margin:10px 0">✅</div>
+    <h1 class="small center" id="done-msg">Movimento registado.</h1>
+    <p class="muted" id="done-sub"></p>
+    <button class="btn block" id="done-continue" type="button">Fazer outro movimento</button>
+  </div>
+
+  <footer>CTE - Centro Tecnológico Especializado · AgEÍlhavo</footer>
+</div>
+
+<div id="global-loading" class="global-loading hidden" aria-hidden="true">
+  <div class="global-loading-spinner"></div>
+</div>
+
+<!-- ============================================================= -->
+<!-- ==========================  ADMIN  ============================ -->
+<!-- ============================================================= -->
+<div id="prof-root" class="stage hidden">
+
+  <div id="scr-prof-login" class="card">
+    <span class="tag">área do professor</span>
+    <h1 class="small">Entrar com o teu PIN</h1>
+    <p class="muted">Usa o mesmo PIN pessoal do quiosque. Esta área é só para professores.</p>
+    <label>PIN</label>
+    <input type="password" id="prof-pin" inputmode="numeric" autocomplete="off" maxlength="8">
+    <button class="btn block" id="prof-login-submit" type="button">Entrar</button>
+    <div class="error center" id="prof-login-error"></div>
+  </div>
+
+  <div id="scr-prof-dash" class="hidden shell">
+    <aside class="sidenav">
+      <div class="nav-top"><span class="brand">Inventário CTE</span></div>
+      <nav class="nav" aria-label="Área do professor">
+        <div class="nav-group">Professor</div>
+        <button class="tab-btn active" data-tab="home" data-label="Início" title="Início" aria-label="Início"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span class="lbl">Início</span></button>
+        <button class="tab-btn" data-tab="inv" data-label="Inventário" title="Inventário" aria-label="Inventário"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span class="lbl">Inventário</span></button>
+        <button class="tab-btn" data-tab="res" data-label="Reservas" title="Reservas" aria-label="Reservas"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg><span class="lbl">Reservas</span></button>
+        <button class="tab-btn" data-tab="mine" data-label="O meu material" title="O meu material" aria-label="O meu material"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg><span class="lbl">O meu material</span><em class="cnt hidden" id="pcnt-mine"></em></button>
+        <button class="tab-btn" data-tab="hist" data-label="Histórico" title="Histórico" aria-label="Histórico"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">Histórico</span></button>
+        <button class="tab-btn" data-tab="fb" data-label="Feedback" title="Feedback" aria-label="Feedback"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 01-11.5 7.2L4 20l1.1-4.3A8 8 0 1121 12z"/></svg><span class="lbl">Feedback</span></button>
+      </nav>
+      <div class="nav-foot">
+        <button class="nav-btn" id="prof-logout" type="button" title="Terminar sessão" aria-label="Terminar sessão"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg><span class="lbl">Sair</span></button>
+        <div id="prof-theme-slot"></div>
+      </div>
+    </aside>
+
+    <main class="content">
+      <header class="topbar"><h1 id="prof-title">Início</h1><span class="muted" id="prof-user"></span></header>
+
+      <div class="panel active" id="ptab-home">
+        <div class="home-grid">
+          <button class="home-tile" type="button" data-pgo="mine"><span class="n" id="phome-late">0</span><b>Em atraso</b><small>material fora do prazo</small></button>
+          <button class="home-tile" type="button" data-pgo="mine"><span class="n" id="phome-today">0</span><b>Termina hoje</b><small>devoluções para hoje</small></button>
+          <button class="home-tile" type="button" data-pgo="res"><span class="n" id="phome-res">0</span><b>Reservas</b><small>ativas ou futuras</small></button>
+          <button class="home-tile" type="button" data-pgo="mine"><span class="n" id="phome-mine">0</span><b>Comigo</b><small>linhas de material</small></button>
+        </div>
+        <div class="card"><h2>Novidades e avisos</h2><div id="phome-list"></div></div>
+      </div>
+
+      <div class="panel" id="ptab-inv">
+        <div class="card">
+          <span class="tag">todo o CTE</span>
+          <h2>Pesquisar e requisitar material</h2>
+          <p class="muted">Todas as valências. O equipamento pode ser requisitado até uma hora de hoje ou durante vários dias, sem limite e sem pedido. A devolução faz-se em "O meu material".</p>
+          <div class="grid3">
+            <div><label>Pesquisar</label><input type="text" id="prof-search" placeholder="🔍 Nome do item…" autocomplete="off"></div>
+            <div><label>Valência</label><select id="prof-cab"><option value="">Todas as valências</option></select></div>
+            <div><label>Categoria</label><select id="prof-cat"><option value="">Todas</option><option value="equipamento">Equipamento</option><option value="consumivel">Consumível</option></select></div>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:400;text-transform:none;font-size:13px"><input type="checkbox" id="prof-avail" style="width:auto"> Só o que está disponível</label>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:400;text-transform:none;font-size:13px"><input type="checkbox" id="prof-fav" style="width:auto"> Só favoritos ★</label>
+          <div class="muted" id="prof-summary" style="margin-top:6px"></div>
+        </div>
+        <div id="prof-recent"></div>
+        <div id="prof-items" class="prof-grid"></div>
+      </div>
+
+      <div class="panel" id="ptab-mine">
+        <div class="card">
+          <span class="tag">em teu nome</span>
+          <h2>O meu material</h2>
+          <p class="muted">Material que requisitaste e ainda não devolveste. Podes devolvê-lo aqui ou no QR da valência (PIN + "Devolvidos").</p>
+          <div id="prof-mine-bar" class="hidden" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:6px 0">
+            <label style="display:flex;align-items:center;gap:8px;margin:0;font-weight:500"><input type="checkbox" id="pm-all" style="width:auto"> Selecionar tudo</label>
+            <button class="btn amber" id="pm-batch" type="button" style="margin:0" disabled>↩️ Devolver selecionados (0)</button>
+          </div>
+          <div id="prof-mine"></div>
+        </div>
+        <div class="card">
+          <span class="tag">estado</span>
+          <h2>Equipamento que assinalei como danificado</h2>
+          <div class="table-wrap"><table id="pdmg-table"><thead><tr><th>Data</th><th>Item</th><th>Qtd.</th><th>Estado</th><th>Nota do responsável</th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+
+      <div class="panel" id="ptab-res">
+        <div class="card">
+          <span class="tag">equipamento</span>
+          <h2>Reservar equipamento</h2>
+          <p class="muted">Reserva equipamento para uma data futura. Enquanto a reserva estiver ativa, outras pessoas não conseguem requisitar essas unidades nesse período. Se levares o equipamento durante a reserva, ela fica cumprida.</p>
+          <label>Equipamento</label>
+          <select id="pres-item"></select>
+          <div class="grid3">
+            <div><label>Quantidade</label><input type="number" id="pres-qty" min="1" step="1" value="1"></div>
+            <div><label>Início</label><input type="datetime-local" id="pres-ini"></div>
+            <div><label>Fim</label><input type="datetime-local" id="pres-fim"></div>
+          </div>
+          <label>Motivo (opcional)</label>
+          <input type="text" id="pres-motivo" maxlength="200" placeholder="ex.: aula de robótica da turma 10.º A">
+          <button class="btn" id="pres-send" type="button">Reservar</button>
+          <div class="error" id="pres-error"></div>
+        </div>
+        <div class="card">
+          <span class="tag">as minhas</span>
+          <h2>As minhas reservas</h2>
+          <div class="table-wrap"><table id="pres-table"><thead><tr><th>Equipamento</th><th>Qtd.</th><th>Período</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+
+      <div class="panel" id="ptab-hist">
+        <div class="card">
+          <span class="tag">pessoal</span>
+          <h2>O meu histórico</h2>
+          <div class="grid3">
+            <div><label>Pesquisar</label><input type="text" id="phist-search" placeholder="Item ou valência…" autocomplete="off"></div>
+            <div><label>De</label><input type="date" id="phist-from"></div>
+            <div><label>Até</label><input type="date" id="phist-to"></div>
+          </div>
+          <div class="grid3">
+            <div><label>Tipo</label><select id="phist-tipo"><option value="">Todos os tipos</option><option value="consumo">Consumo</option><option value="levantamento">Requisição</option><option value="devolucao">Devolução</option></select></div>
+            <div><label>&nbsp;</label><div id="phist-summary" class="muted" style="margin-top:10px"></div></div>
+          </div>
+          <button class="btn secondary" id="phist-csv" type="button">⬇ Exportar CSV</button>
+          <button class="btn secondary" id="phist-pdf" type="button">📄 Exportar PDF</button>
+          <div class="table-wrap"><table id="phist-table"><thead><tr><th>Data/Hora</th><th>Valência</th><th>Item</th><th>Tipo</th><th>Qtd.</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+
+      <div class="panel" id="ptab-fb">
+        <div class="card">
+          <span class="tag">ajuda a melhorar</span>
+          <h2>Enviar feedback</h2>
+          <p class="muted">Equipamento encontrado danificado, sugestão de melhoria, sugestão de material para comprar… O responsável recebe um aviso por email.</p>
+          <div class="grid2">
+            <div><label>Assunto</label><select id="pfb-tipo"><option value="danificado">Equipamento encontrado danificado</option><option value="melhoria">Sugestão de melhoria</option><option value="aquisicao">Sugestão de aquisição de equipamento</option><option value="outro">Outro</option></select></div>
+            <div><label>Valência (opcional)</label><select id="pfb-cab"><option value="">—</option></select></div>
+          </div>
+          <label>Item / equipamento (opcional)</label>
+          <input type="text" id="pfb-item" maxlength="120" placeholder="ex.: Impressora 3D n.º 2">
+          <label>Mensagem</label>
+          <textarea id="pfb-msg" rows="4" maxlength="1000" placeholder="Descreve o que encontraste ou a tua sugestão"></textarea>
+          <button class="btn" id="pfb-send" type="button">Enviar feedback</button>
+          <div class="error" id="pfb-error"></div>
+        </div>
+        <div class="card">
+          <span class="tag">histórico</span>
+          <h2>Os meus envios</h2>
+          <div class="table-wrap"><table id="pfb-table"><thead><tr><th>Data</th><th>Assunto</th><th>Onde</th><th>Mensagem</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+
+      <footer>PROJETO CTE · ÁREA DO PROFESSOR</footer>
+    </main>
+  </div>
+</div>
+
+<div id="admin-root" class="stage hidden">
+
+  <div id="scr-admin-setup" class="card hidden">
+    <span class="tag">primeira configuração</span>
+    <h1 class="small">Definir password de administrador</h1>
+    <p class="muted">Ainda não existe password. Define uma agora — só é pedida uma vez por dispositivo/sessão.</p>
+    <label>Nova password (mín. 4 carateres)</label>
+    <input type="password" id="setup-pw1">
+    <label>Confirmar password</label>
+    <input type="password" id="setup-pw2">
+    <button class="btn block" id="setup-submit" type="button">Definir e entrar</button>
+    <div class="error center" id="setup-error"></div>
+  </div>
+
+  <div id="scr-admin-login" class="card hidden">
+    <span class="tag">administração</span>
+    <h1 class="small">Entrar como administrador</h1>
+    <label>Password</label>
+    <input type="password" id="login-pw">
+    <button class="btn block" id="login-submit" type="button">Entrar</button>
+    <div class="error center" id="login-error"></div>
+  </div>
+
+  <div id="scr-admin-dash" class="hidden shell">
+    <aside class="sidenav" id="sidenav">
+      <div class="nav-top"><span class="brand">Inventário CTE</span><button class="icon-btn" id="nav-collapse" type="button" title="Recolher / expandir o menu" aria-label="Recolher ou expandir o menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button></div>
+      <nav class="nav" aria-label="Painel de administração">
+        <div class="nav-group">Operação</div>
+      <button class="tab-btn active" data-tab="home" data-label="Início" title="Início" aria-label="Início"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span class="lbl">Início</span></button>
+      <button class="tab-btn" data-tab="stock" data-label="Stock atual" title="Stock atual" aria-label="Stock atual"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg><span class="lbl">Stock atual</span><em class="cnt hidden" id="cnt-stock"></em></button>
+      <button class="tab-btn" data-tab="req" data-label="Pedidos" title="Pedidos" aria-label="Pedidos"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13l3-8h12l3 8"/><path d="M3 13v6h18v-6h-5l-1 3H9l-1-3H3z"/></svg><span class="lbl">Pedidos</span><em class="cnt hidden" id="cnt-req"></em></button>
+      <button class="tab-btn" data-tab="dmg" data-label="Danificados" title="Danificados" aria-label="Danificados"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l10 18H2L12 3z"/><path d="M12 10v5"/><path d="M12 18h.01"/></svg><span class="lbl">Danificados</span><em class="cnt hidden" id="cnt-dmg"></em></button>
+      <button class="tab-btn" data-tab="fb" data-label="Feedback" title="Feedback" aria-label="Feedback"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 01-11.5 7.2L4 20l1.1-4.3A8 8 0 1121 12z"/></svg><span class="lbl">Feedback</span><em class="cnt hidden" id="cnt-fb"></em></button>
+      <button class="tab-btn" data-tab="rsv" data-label="Reservas" title="Reservas" aria-label="Reservas"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg><span class="lbl">Reservas</span></button>
+      <button class="tab-btn" data-tab="hist" data-label="Histórico" title="Histórico" aria-label="Histórico"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">Histórico</span></button>
+        <div class="nav-group">Pessoas</div>
+      <button class="tab-btn" data-tab="users" data-label="Utilizadores" title="Utilizadores" aria-label="Utilizadores"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.5a3.5 3.5 0 010 7"/><path d="M18 14.5c2.2.6 3.5 2.4 3.5 5"/></svg><span class="lbl">Utilizadores</span></button>
+        <div class="nav-group">Sistema</div>
+      <button class="tab-btn" data-tab="cabs" data-label="Valências & itens" title="Valências & itens" aria-label="Valências & itens"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="lbl">Valências & itens</span></button>
+      <button class="tab-btn" data-tab="mob" data-label="Mobiliário" title="Mobiliário" aria-label="Mobiliário"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v6H5z"/><path d="M4 10h16v4H4z"/><path d="M6 14v6M18 14v6"/></svg><span class="lbl">Mobiliário</span></button>
+      <button class="tab-btn" data-tab="pcs" data-label="Computadores" title="Computadores" aria-label="Computadores"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg><span class="lbl">Computadores</span></button>
+      <button class="tab-btn" data-tab="charts" data-label="Gráficos" title="Gráficos" aria-label="Gráficos"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4"/><path d="M4 20h16"/><rect x="8" y="12" width="3" height="5"/><rect x="13" y="8" width="3" height="9"/><rect x="18" y="14" width="2" height="3"/></svg><span class="lbl">Gráficos</span></button>
+      <button class="tab-btn" data-tab="settings" data-label="Definições" title="Definições" aria-label="Definições"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10"/><path d="M18 7h2"/><circle cx="16" cy="7" r="2"/><path d="M4 17h2"/><path d="M10 17h10"/><circle cx="8" cy="17" r="2"/></svg><span class="lbl">Definições</span><em class="cnt hidden" id="cnt-settings"></em></button>
+      </nav>
+      <div class="nav-foot">
+        <button class="nav-btn" id="admin-refresh-all" type="button" title="Sincronizar tudo com a folha de cálculo" aria-label="Atualizar"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 4v7h-7"/></svg><span class="lbl">Atualizar</span></button>
+        <div id="nav-theme-slot"></div>
+      </div>
+    </aside>
+
+    <main class="content">
+    <header class="topbar">
+      <h1 id="page-title">Início</h1>
+      <div class="goto">
+        <input type="text" id="goto-input" placeholder="Ir para… página, item ou valência  ( / )" autocomplete="off" aria-label="Ir para">
+        <div class="goto-results hidden" id="goto-results"></div>
+      </div>
+    </header>
+
+    <div id="backup-banner" class="created-box hidden" style="margin:0 0 14px;border-color:var(--amber);background:var(--amber-dim)"></div>
+
+    <div class="panel active" id="tab-home">
+      <div class="home-grid">
+        <button class="home-tile" type="button" data-go="stock" data-low="1"><span class="n" id="home-low">0</span><b>Stock baixo</b><small>itens abaixo do limite</small></button>
+        <button class="home-tile" type="button" data-go="stock" data-scroll="outstanding-card"><span class="n" id="home-out">0</span><b>Por devolver</b><small>linhas de material fora</small></button>
+        <button class="home-tile" type="button" data-go="dmg"><span class="n" id="home-dmg">0</span><b>Danificados</b><small>por tratar</small></button>
+        <button class="home-tile" type="button" data-go="stock" data-scroll="outstanding-card"><span class="n" id="home-late">0</span><b>Em atraso</b><small>fora do prazo de devolução</small></button>
+        <button class="home-tile" type="button" data-go="req"><span class="n" id="home-req">0</span><b>Pedidos</b><small>à espera de resposta</small></button>
+        <button class="home-tile" type="button" data-go="settings"><span class="n" id="home-bk" style="font-size:24px;padding:4px 0">—</span><b>Última cópia</b><small>de segurança</small></button>
+      </div>
+      <div class="card"><h2>Precisa de atenção</h2><div id="home-list"></div></div>
+    </div>
+
+    <div class="panel" id="tab-cabs">
+      <div class="card">
+        <span class="tag">1.º passo</span>
+        <h2>Criar sala</h2>
+        <p class="muted">Tudo começa pela sala. Depois de a criares, aparece abaixo e é lá que crias as valências (os armários, com o material) e, na página Mobiliário, os móveis.</p>
+        <div class="qty-row"><input type="text" id="sal-name" maxlength="100" placeholder="ex.: Sala CTE 2" autocomplete="off"><button class="btn" id="sal-create" type="button">Criar sala</button></div>
+        <div class="error" id="sal-error"></div>
+      </div>
+      <div class="card" style="padding:14px 18px">
+        <label style="margin-top:0">Pesquisar valências e itens</label>
+        <input type="text" id="cabs-search" placeholder="🔍 Nome da valência, sala ou item…" autocomplete="off">
+      </div>
+      <div id="cabs-list"></div>
+    </div>
+
+    <div class="panel" id="tab-users">
+      <div class="card acc-teal">
+        <span class="tag">novo utilizador</span>
+        <h2>Criar professor / aluno</h2>
+        <div class="grid2">
+          <div><label>Nome</label><input type="text" id="user-name" placeholder="Nome completo"></div>
+          <div><label>Tipo</label><select id="user-role"><option value="aluno">Aluno</option><option value="professor">Professor</option><option value="coordenador_junior">Coordenador Júnior</option><option value="coordenador_cte">Coordenação CTE</option></select></div>
+        </div>
+        <label>Email (opcional — o PIN é enviado automaticamente para este endereço)</label>
+        <input type="email" id="user-email" placeholder="ex.: nome@escola.pt" autocomplete="off">
+        <button class="btn" id="user-create" type="button">Criar utilizador</button>
+        <div class="error" id="user-error"></div>
+        <div id="user-created" class="created-box hidden"></div>
+        <p class="muted">O PIN é gerado automaticamente, enviado por email (se indicares um email) e aparece à frente do utilizador, na lista. Pode ser consultado a qualquer momento.</p>
+      </div>
+      <div class="card acc-teal" style="margin-top:14px">
+        <span class="tag">utilizadores existentes</span>
+        <h2>Lista</h2>
+        <div class="table-wrap"><table id="users-table"><thead><tr><th>Nome</th><th>Tipo</th><th>PIN</th><th>Email</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div class="card acc-teal">
+        <span class="tag">importar</span>
+        <h2>Importar utilizadores de uma lista</h2>
+        <p class="muted">Cola uma lista com uma pessoa por linha: <b>nome; tipo; email</b> (tipo = aluno, professor, coordenador júnior ou coordenação CTE; o email é opcional). Também funciona se copiares as colunas de uma folha de cálculo. Os PINs são gerados automaticamente.</p>
+        <textarea id="import-text" rows="6" placeholder="Ana Silva; aluno; ana@escola.pt&#10;Rui Costa; professor; rui@escola.pt&#10;Maria Sousa; aluno"></textarea>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400;text-transform:none;font-size:13px"><input type="checkbox" id="import-send" checked style="width:auto"> Enviar o PIN por email a quem tiver email</label>
+        <button class="btn secondary" id="import-preview" type="button">Pré-visualizar</button>
+        <div class="error" id="import-error"></div>
+        <div id="import-preview-box" class="hidden">
+          <div class="table-wrap"><table id="import-table"><thead><tr><th>Nome</th><th>Tipo</th><th>Email</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+          <button class="btn" id="import-go" type="button">Importar</button>
+        </div>
+        <div id="import-result" class="hidden">
+          <h3>Resultado</h3>
+          <div class="table-wrap"><table id="import-result-table"><thead><tr><th>Nome</th><th>Tipo</th><th>PIN</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+          <button class="btn secondary" id="import-csv" type="button">⬇ Descarregar lista com PINs (CSV)</button>
+          <p class="muted">Guarda este ficheiro em local seguro: contém os PINs.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="tab-stock">
+      <div class="card acc-amber">
+        <span class="tag">saldo em tempo real</span>
+        <h2>Stock atual — todas as valências</h2>
+        <div class="grid3">
+          <div><label>Pesquisar</label><input type="text" id="stock-search" placeholder="Nome do item ou valência…"></div>
+          <div><label>Categoria</label><select id="stock-filter-cat"><option value="">Todas</option><option value="consumivel">Consumível</option><option value="equipamento">Equipamento</option></select></div>
+          <div><label>&nbsp;</label>
+            <label style="display:flex;align-items:center;gap:6px;font-weight:400;text-transform:none;font-size:13px;margin-top:9px">
+              <input type="checkbox" id="stock-filter-low" style="width:auto"> Só stock baixo
+            </label>
+          </div>
+        </div>
+        <div class="table-wrap"><table id="stock-table"><thead><tr><th>Valência</th><th>Item</th><th>Categoria</th><th>Inicial</th><th>Limite mín.</th><th>Saldo</th></tr></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="card acc-rust" id="outstanding-card">
+        <span class="tag">reconciliação</span>
+        <h2>Material por devolver</h2>
+        <p class="muted">Tudo o que ainda consta como requisitado por alguém, em todas as valências. Usa só depois de confirmares fisicamente que o material já está de volta — esta ação regista uma devolução para cada linha assinalada.</p>
+        <div class="table-wrap"><table id="outstanding-table"><thead><tr><th><input type="checkbox" id="outstanding-select-all" style="width:auto"></th><th>Valência</th><th>Item</th><th>Pessoa</th><th>Qtd.</th><th>Prazo</th></tr></thead><tbody></tbody></table></div>
+        <button class="btn amber" id="outstanding-return-selected" type="button">↩️ Marcar selecionados como devolvidos</button>
+        <button class="btn danger" id="outstanding-return-all" type="button">↩️ Marcar TUDO como devolvido</button>
+      </div>
+    </div>
+
+    <div class="panel" id="tab-hist">
+      <div class="card acc-rust">
+        <span class="tag">registo completo</span>
+        <h2>Histórico de movimentos</h2>
+        <div class="grid3">
+          <div><label>Pesquisar</label><input type="text" id="hist-search" placeholder="Item, valência ou nome…"></div>
+          <div><label>De</label><input type="date" id="hist-filter-from"></div>
+          <div><label>Até</label><input type="date" id="hist-filter-to"></div>
+        </div>
+        <div class="grid3">
+          <div><label>Valência</label><select id="hist-filter-cabinet"><option value="">Todas</option></select></div>
+          <div><label>Tipo</label>
+            <select id="hist-filter-tipo">
+              <option value="">Todos os tipos</option>
+              <option value="consumo">Consumo</option>
+              <option value="levantamento">Requisição</option>
+              <option value="devolucao">Devolução</option>
+              <option value="reposicao">Reposição</option>
+            </select>
+          </div>
+          <div><label>&nbsp;</label>
+            <label style="display:flex;align-items:center;gap:6px;font-weight:400;text-transform:none;font-size:13px;margin-top:9px">
+              <input type="checkbox" id="hist-filter-danificado" style="width:auto"> Só danificados
+            </label>
+          </div>
+        </div>
+        <button class="btn secondary" id="hist-export" type="button">⬇ Exportar CSV</button>
+        <button class="btn secondary" id="hist-export-pdf" type="button">📄 Exportar PDF (resultados filtrados)</button>
+        <div class="table-wrap"><table id="hist-table"><thead><tr><th>Data/Hora</th><th>Valência</th><th>Item</th><th>Tipo</th><th>Qtd.</th><th>Nome</th><th>Tipo utiliz.</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+
+    <div class="panel" id="tab-req">
+      <div class="card acc-teal">
+        <span class="tag">requisição prolongada</span>
+        <h2>Pedidos de requisição</h2>
+        <p class="muted">Cada requisição de equipamento vai, no máximo, até ao fim do dia escolar (17:00). Quem precisa de mais tempo faz um pedido a dizer por quantos dias. Ao <b>aceitar</b>, a requisição fica registada em nome da pessoa, a devolver no fim do dia escolar do último dia; ao <b>recusar</b>, não se retira nada do stock.</p>
+        <div class="grid3">
+          <div><label>Estado</label><select id="req-filter-estado"><option value="pendente">Pendentes</option><option value="">Todos</option><option value="aceite">Aceites</option><option value="recusado">Recusados</option></select></div>
+          <div><label>Pesquisar</label><input type="text" id="req-search" placeholder="Pessoa, item, motivo…" autocomplete="off"></div>
+          <div><label>&nbsp;</label><div id="req-summary" class="muted" style="margin-top:10px"></div></div>
+        </div>
+        <div class="table-wrap"><table id="req-table"><thead><tr><th>Data</th><th>Pessoa</th><th>Equipamento</th><th>Qtd.</th><th>Tempo pedido</th><th>Motivo</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+
+    <div class="panel" id="tab-fb">
+      <div class="card acc-teal">
+        <span class="tag">professores</span>
+        <h2>Feedback dos professores</h2>
+        <p class="muted">Equipamento encontrado danificado, sugestões de melhoria e de aquisição. Marca como visto ou tratado à medida que for resolvido.</p>
+        <div class="grid3">
+          <div><label>Estado</label><select id="fb-filter-estado"><option value="novo">Novos</option><option value="">Todos</option><option value="visto">Vistos</option><option value="tratado">Tratados</option></select></div>
+          <div><label>Pesquisar</label><input type="text" id="fb-search" placeholder="Professor, item, mensagem…" autocomplete="off"></div>
+          <div><label>&nbsp;</label><div id="fb-summary" class="muted" style="margin-top:10px"></div></div>
+        </div>
+        <div class="table-wrap"><table id="fb-table"><thead><tr><th>Data</th><th>Professor</th><th>Assunto</th><th>Onde</th><th>Mensagem</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+
+    <div class="panel" id="tab-rsv">
+      <div class="card acc-teal">
+        <span class="tag">professores</span>
+        <h2>Reservas de equipamento</h2>
+        <p class="muted">Reservas feitas pelos professores. Uma reserva ativa impede que outras pessoas requisitem essas unidades nesse período. Podes cancelá-la.</p>
+        <div class="grid3">
+          <div><label>Estado</label><select id="rsv-filter-estado"><option value="ativa">Ativas</option><option value="">Todas</option><option value="cumprida">Cumpridas</option><option value="cancelada">Canceladas</option><option value="terminada">Terminadas</option></select></div>
+          <div><label>Pesquisar</label><input type="text" id="rsv-search" placeholder="Professor, equipamento, motivo…" autocomplete="off"></div>
+          <div><label>&nbsp;</label><div id="rsv-summary" class="muted" style="margin-top:10px"></div></div>
+        </div>
+        <div class="table-wrap"><table id="rsv-table"><thead><tr><th>Professor</th><th>Equipamento</th><th>Qtd.</th><th>Período</th><th>Motivo</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+
+    <div class="panel" id="tab-dmg">
+      <div class="card acc-rust">
+        <span class="tag">equipamento danificado</span>
+        <h2>Lista de equipamentos danificados</h2>
+        <p class="muted">Cada devolução assinalada como danificada entra aqui "por avaliar". Muda o estado à medida que o equipamento é avaliado, reparado ou abatido. Todo o equipamento assinalado como danificado fica <b>indisponível</b> (quiosque e área do professor) enquanto estiver por avaliar ou em reparação. Para o voltar a disponibilizar, marca-o como <b>reparado</b> ou <b>libertado</b> (utilizável, sem reparação). O equipamento abatido deixa de contar para o stock.</p>
+        <div class="grid3">
+          <div><label>Estado</label>
+            <select id="dmg-filter-estado">
+              <option value="pend">Por tratar (por avaliar + em reparação)</option>
+              <option value="">Todos</option>
+              <option value="por_avaliar">Por avaliar</option>
+              <option value="em_reparacao">Em reparação</option>
+              <option value="reparado">Reparado</option>
+              <option value="libertado">Libertado</option>
+              <option value="abatido">Abatido</option>
+            </select></div>
+          <div><label>Pesquisar</label><input type="text" id="dmg-search" placeholder="Item, pessoa, descrição…" autocomplete="off"></div>
+          <div><label>&nbsp;</label><div id="dmg-summary" class="muted" style="margin-top:10px"></div></div>
+        </div>
+        <div class="table-wrap"><table id="dmg-table"><thead><tr><th>Data</th><th>Valência</th><th>Item</th><th>Qtd.</th><th>Devolvido por</th><th>Funcional?</th><th>Dano / o que aconteceu</th><th>Estado</th><th>Nota</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+
+    <div class="panel" id="tab-mob">
+      <div class="card">
+        <span class="tag">só administração</span>
+        <h2>Mobiliário e equipamento fixo</h2>
+        <p class="muted">Móveis, cadeiras, mesas e outro equipamento que está nas salas e não se requisita. Só tu vês esta página: não aparece no quiosque nem na área do professor.</p>
+        <div class="grid3">
+          <div><label>Sala</label><select id="mob-sala"></select></div>
+          <div><label>Móvel / equipamento</label><input type="text" id="mob-nome" maxlength="150" placeholder="ex.: Cadeira de escritório"></div>
+          <div><label>Quantidade</label><input type="number" id="mob-qty" min="1" step="1" value="1"></div>
+        </div>
+        <div class="grid2">
+          <div><label>Estado</label><select id="mob-estado"><option value="bom">Bom</option><option value="razoavel">Razoável</option><option value="mau">Mau / a substituir</option></select></div>
+          <div><label>Notas (opcional)</label><input type="text" id="mob-notas" maxlength="300" placeholder="ex.: 2 com o assento rasgado"></div>
+        </div>
+        <button class="btn" id="mob-add" type="button">Adicionar</button>
+        <div class="error" id="mob-error"></div>
+      </div>
+      <div class="card">
+        <span class="tag">inventário fixo</span>
+        <h2>Lista</h2>
+        <div class="grid3">
+          <div><label>Pesquisar</label><input type="text" id="mob-search" placeholder="Móvel, sala ou nota…" autocomplete="off"></div>
+          <div><label>Sala</label><select id="mob-filter-sala"><option value="">Todas</option></select></div>
+          <div><label>Estado</label><select id="mob-filter-estado"><option value="">Todos</option><option value="bom">Bom</option><option value="razoavel">Razoável</option><option value="mau">Mau / a substituir</option></select></div>
+        </div>
+        <div class="muted" id="mob-summary" style="margin-top:8px"></div>
+        <button class="btn secondary" id="mob-csv" type="button">⬇ Exportar CSV</button>
+        <div class="table-wrap"><table id="mob-table"><thead><tr><th>Sala</th><th>Móvel / equipamento</th><th>Qtd.</th><th>Estado</th><th>Notas</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+
+    <div class="panel" id="tab-pcs">
+      <div id="pc-aviso" class="notice hidden"></div>
+      <div class="card">
+        <span class="tag">1.º passo</span>
+        <h2>Criar computadores em lote</h2>
+        <p class="muted">Escolhe a sala e o intervalo: os nomes são gerados com o prefixo e a numeração (ex.: <b>PC-01</b> a <b>PC-20</b>). Computadores que já existam com o mesmo nome são ignorados — podes repetir sem duplicar.</p>
+        <div class="grid3">
+          <div><label>Sala</label><select id="pc-sala"></select></div>
+          <div><label>Prefixo</label><input type="text" id="pc-prefixo" value="PC-" maxlength="20"></div>
+          <div><label>Dígitos</label><input type="number" id="pc-digitos" min="1" max="4" step="1" value="2"></div>
+        </div>
+        <div class="grid2">
+          <div><label>De</label><input type="number" id="pc-de" min="1" step="1" value="1"></div>
+          <div><label>Até</label><input type="number" id="pc-ate" min="1" step="1" value="20"></div>
+        </div>
+        <button class="btn" id="pc-criar" type="button">Criar computadores</button>
+        <div class="error" id="pc-error"></div>
+        <div class="muted" id="pc-resultado" style="margin-top:8px"></div>
+      </div>
+
+      <div class="card">
+        <span class="tag">postos de trabalho</span>
+        <h2>Computadores</h2>
+        <div class="grid3">
+          <div><label>Pesquisar</label><input type="text" id="pc-search" placeholder="PC ou sala…" autocomplete="off"></div>
+          <div><label>Sala</label><select id="pc-filter-sala"><option value="">Todas</option></select></div>
+          <div><label>Estado</label><select id="pc-filter-estado"><option value="">Todos</option><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="manutencao">Em manutenção</option></select></div>
+        </div>
+        <div class="muted" id="pc-summary" style="margin-top:8px"></div>
+        <button class="btn secondary" id="pc-imprimir-lista" type="button">🖨 Imprimir etiquetas (o que estiver filtrado)</button>
+        <div class="table-wrap"><table id="pc-table"><thead><tr><th>Computador</th><th>Sala</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="card acc-amber">
+        <span class="tag">mesa do professor</span>
+        <h2>QR da mesa</h2>
+        <p class="muted">Um QR por sala, para colar na mesa do professor. O código identifica a sala — não dá autorização por si só (isso é feito com o PIN, numa fase seguinte).</p>
+        <div class="qty-row">
+          <select id="pc-mesa-sala"></select>
+          <button class="btn" id="pc-mesa-gerar" type="button">Gerar QR</button>
+        </div>
+        <p class="muted" id="pc-link-base" style="word-break:break-all;margin-top:8px"></p>
+        <div id="pc-mesa-box" class="qr-box"></div>
+        <div class="error" id="pc-mesa-error"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="tab-charts">
+      <div class="card acc-teal">
+        <span class="tag">estatísticas</span>
+        <h2>Gráficos</h2>
+        <div class="grid2">
+          <div><label>Período</label><select id="chart-period"><option value="3">Últimos 3 meses</option><option value="6" selected>Últimos 6 meses</option><option value="12">Últimos 12 meses</option></select></div>
+          <div><label>Valência</label><select id="chart-cabinet"><option value="">Todas</option></select></div>
+        </div>
+      </div>
+      <div class="chart-grid">
+        <div class="card"><h3>Utilizações por mês</h3><p class="muted">Consumos + requisições</p><div id="chart-month"></div></div>
+        <div class="card"><h3>Equipamentos danificados por mês</h3><div id="chart-damage"></div></div>
+        <div class="card"><h3>Utilizações por valência</h3><div id="chart-cab"></div></div>
+        <div class="card"><h3>Equipamento mais requisitado</h3><p class="muted">Número de requisições</p><div id="chart-equip"></div></div>
+        <div class="card" style="grid-column:1/-1"><h3>Consumíveis mais gastos</h3><p class="muted">Quantidade total consumida, por unidade de medida</p><div id="chart-cons" class="chart-grid"></div></div>
+      </div>
+    </div>
+
+    <div class="panel" id="tab-settings">
+      <div class="card">
+        <span class="tag">segurança</span>
+        <h2>Alterar password de administrador</h2>
+        <label>Password atual</label>
+        <input type="password" id="settings-pw-current">
+        <label>Nova password (mín. 4 carateres)</label>
+        <input type="password" id="settings-pw-new">
+        <label>Confirmar nova password</label>
+        <input type="password" id="settings-pw-confirm">
+        <button class="btn" id="settings-pw-submit" type="button">Alterar password</button>
+        <div class="error" id="settings-pw-error"></div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <span class="tag">área do professor</span>
+        <h2>Link da área do professor</h2>
+        <p class="muted">Os professores entram com o PIN pessoal. Partilha este link só com eles (não é preciso QR).</p>
+        <div class="created-box" id="prof-link" style="word-break:break-all;margin-top:6px">—</div>
+        <button class="btn secondary" id="prof-link-copy" type="button">📋 Copiar link</button>
+      </div>
+
+      <div class="card acc-amber" style="margin-top:14px">
+        <span class="tag">notificações automáticas</span>
+        <h2>Emails de aviso</h2>
+        <p class="muted">Preenche para ativar cada aviso. Deixa vazio para desligar.</p>
+        <label>Email para avisos de equipamento danificado</label>
+        <input type="email" id="settings-email-danificado" placeholder="ex.: responsavel@escola.pt">
+        <label>Email para avisos de stock baixo</label>
+        <input type="email" id="settings-email-stock" placeholder="ex.: coordenador.cte@escola.pt">
+        <label>Email para pedidos de requisição prolongada (se vazio, usa o de stock baixo)</label>
+        <input type="email" id="settings-email-pedidos" placeholder="ex.: responsavel@escola.pt">
+        <button class="btn" id="settings-notify-submit" type="button">Guardar emails de aviso</button>
+        <button class="btn secondary" id="settings-notify-test" type="button">✉️ Guardar e enviar email de teste</button>
+        <div class="error" id="settings-notify-error"></div>
+        <div id="settings-notify-test-result" style="margin-top:8px;font-size:13px"></div>
+        <p class="muted">O limite mínimo que despoleta o aviso de stock baixo define-se por item, na aba "Valências &amp; itens". Usa o botão de teste para confirmar que os emails chegam — se algum falhar, o motivo aparece aqui e no registo abaixo.</p>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <span class="tag">registo de avisos</span>
+        <h2>Últimas tentativas de envio</h2>
+        <p class="muted">Cada aviso automático (e cada teste) fica registado aqui, incluindo os que falharam ou foram ignorados por não haver email configurado.</p>
+        <button class="btn secondary" id="notify-log-refresh" type="button">🔄 Atualizar registo</button>
+        <div class="table-wrap"><table id="notify-log-table"><thead><tr><th>Data/Hora</th><th>Tipo</th><th>Destinatário</th><th>Resultado</th><th>Detalhe</th></tr></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="card acc-amber">
+        <span class="tag">resumo semanal</span>
+        <h2>Resumo semanal por email</h2>
+        <p class="muted">Um email com o movimento da semana, stock baixo, material por devolver e equipamento danificado. Escolhe o dia e a hora, ou desativa.</p>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;text-transform:none;font-size:14px"><input type="checkbox" id="dg-ativo" style="width:auto"> Enviar o resumo semanal</label>
+        <div class="grid3">
+          <div><label>Dia da semana</label><select id="dg-dia"></select></div>
+          <div><label>Hora (a partir de)</label><select id="dg-hora"></select></div>
+          <div><label>Email de destino</label><input type="email" id="dg-email" placeholder="ex.: coordenador.cte@escola.pt"></div>
+        </div>
+        <button class="btn" id="dg-save" type="button">Guardar</button>
+        <button class="btn secondary" id="dg-now" type="button">✉️ Enviar resumo agora</button>
+        <div class="error" id="dg-error"></div>
+        <div id="dg-result" class="muted"></div>
+        <p class="muted" id="dg-tz"></p>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400;text-transform:none;font-size:13px"><input type="checkbox" id="dg-atraso" style="width:auto"> Enviar um lembrete por email a quem tem material em atraso (em dias de aulas, no máximo um por pessoa e por dia)</label>
+      </div>
+
+      <div class="card acc-teal">
+        <span class="tag">cópias de segurança</span>
+        <h2>Cópias de segurança</h2>
+        <p class="muted">Um único ficheiro ZIP com todos os dados, guardado numa pasta do Drive. Cada cópia nova substitui a anterior (a antiga vai para o lixo só depois de a nova estar guardada). Opcionalmente, o mesmo ficheiro é enviado por email para <b>outra conta</b>, que fica com o histórico das cópias.</p>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;text-transform:none;font-size:14px"><input type="checkbox" id="bk-ativo" style="width:auto"> Fazer cópias automáticas</label>
+        <div class="grid3">
+          <div><label>Frequência</label><select id="bk-freq"><option value="diaria">Diária</option><option value="semanal">Semanal</option></select></div>
+          <div id="bk-dia-wrap"><label>Dia (semanal)</label><select id="bk-dia"></select></div>
+          <div><label>Hora (a partir de)</label><select id="bk-hora"></select></div>
+        </div>
+        <label>Enviar também por email (conta externa) — recomendado</label>
+        <input type="email" id="bk-email" placeholder="ex.: copia.cte@gmail.com">
+        <button class="btn" id="bk-save" type="button">Guardar</button>
+        <button class="btn secondary" id="bk-now" type="button">💾 Fazer cópia agora</button>
+        <button class="btn amber" id="bk-activate" type="button">⚙️ Ativar automações</button>
+        <div class="error" id="bk-error"></div>
+        <div id="bk-status" class="muted" style="margin-top:8px"></div>
+        <div class="table-wrap"><table id="bk-table"><thead><tr><th>Cópia</th><th>Data</th><th></th></tr></thead><tbody></tbody></table></div>
+        <p class="muted">A cópia no Drive fica na mesma conta Google da folha. O email para uma conta externa protege também contra a perda dessa conta. O email contém PINs e emails: usa só uma conta de responsável.</p>
+      </div>
+    </div>
+
+    <footer>PROJETO CTE · PAINEL DE ADMINISTRAÇÃO</footer>
+    </main>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Área usada só na impressão das etiquetas dos computadores -->
+<div id="print-area" aria-hidden="true"></div>
+
+<script src="qrlib.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
