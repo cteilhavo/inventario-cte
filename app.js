@@ -98,7 +98,7 @@ function toast(msg){
 }
 
 function show(id){
-  ['scr-loading','scr-picker','scr-pin','scr-kiosk','scr-done','scr-pc-stub'].forEach(function(s){
+  ['scr-loading','scr-picker','scr-pin','scr-kiosk','scr-done','scr-pc','scr-sala-stub'].forEach(function(s){
     document.getElementById(s).classList.toggle('hidden', s !== id);
   });
 }
@@ -3627,6 +3627,164 @@ document.getElementById('pc-mesa-gerar').addEventListener('click', function(){
 });
 
 /* ============================================================
+   ECRÃ DO POSTO DE TRABALHO (?pc=…)
+   ============================================================ */
+var pcState = { id: window.__PC_ID__ || '', info: null, pin: '', busy: false, sessao: null };
+
+function pcHora_(iso){
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  var p = function(n){ return (n < 10 ? '0' : '') + n; };
+  return p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+function pcPintarDots_(){
+  var wrap = document.getElementById('pc-pin-dots');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  var len = Math.max(pcState.pin.length, 4);
+  for (var i = 0; i < len; i++){
+    var d = document.createElement('span');
+    if (i < pcState.pin.length) d.classList.add('filled');
+    wrap.appendChild(d);
+  }
+}
+
+function pcBloquearTeclado_(b){
+  pcState.busy = b;
+  var kp = document.getElementById('pc-keypad');
+  if (kp) Array.prototype.forEach.call(kp.querySelectorAll('button'), function(x){ x.disabled = b; });
+  var h = document.getElementById('pc-pin-hint');
+  if (h) h.textContent = b ? 'A verificar…' : 'Introduz o teu PIN para começar.';
+}
+
+function pcTecla_(k){
+  if (pcState.busy) return;
+  if (k === '⌫'){ pcState.pin = pcState.pin.slice(0, -1); pcPintarDots_(); return; }
+  if (k === 'OK'){ pcSubmeter_(); return; }
+  if (pcState.pin.length >= 8) return;
+  pcState.pin += k;
+  pcPintarDots_();
+}
+
+function pcBuildTeclado_(){
+  var kp = document.getElementById('pc-keypad');
+  if (!kp || kp.dataset.pronto) return;
+  var teclas = ['1','2','3','4','5','6','7','8','9','⌫','0','OK'];
+  teclas.forEach(function(k){
+    var b = document.createElement('button');
+    b.type = 'button'; b.textContent = k;
+    if (k === '⌫' || k === 'OK') b.classList.add('wide');
+    b.addEventListener('click', function(){ pcTecla_(k); });
+    kp.appendChild(b);
+  });
+  kp.dataset.pronto = '1';
+}
+
+function pcEstadoTexto_(info){
+  var partes = [];
+  if (info.periodo){
+    var et = (info.periodo.etiquetas || []).join(' · ');
+    partes.push('Aula em curso até ' + info.periodo.fim + (et ? ' (' + et + ')' : ''));
+  } else if (info.aberta){
+    partes.push('Sala aberta até ' + pcHora_(info.fimPrevisto));
+  } else {
+    partes.push('Sala fechada — pede a um professor ou ao coordenador do CTE para abrir.');
+  }
+  if (info.ocupadoPor) partes.push('Em uso por ' + info.ocupadoPor + '.');
+  return partes.join(' ');
+}
+
+function pcBoot_(){
+  show('scr-pc');
+  document.getElementById('pc-nome').textContent = 'A carregar…';
+  document.getElementById('pc-sala').textContent = '';
+  gsRunQ('api_pcInfo', pcState.id).then(function(info){
+    if (!info || !info.ok){
+      document.getElementById('pc-nome').textContent = 'Computador';
+      var est = document.getElementById('pc-estado');
+      est.className = 'notice late';
+      est.textContent = (info && info.error === 'computador_nao_encontrado') ? 'Este QR não corresponde a nenhum computador conhecido.'
+        : (info && info.error === 'modulo_inativo') ? 'O registo de utilização está desligado.'
+        : 'Não foi possível ler este posto. Tenta outra vez.';
+      document.getElementById('pc-pin-bloco').classList.add('hidden');
+      document.getElementById('pc-ok').classList.add('hidden');
+      return;
+    }
+    pcState.info = info;
+    document.getElementById('pc-nome').textContent = info.computador.nome;
+    document.getElementById('pc-sala').textContent = info.computador.sala || '';
+    var est2 = document.getElementById('pc-estado');
+    est2.textContent = pcEstadoTexto_(info);
+    est2.className = 'notice' + ((!info.periodo && !info.aberta) ? ' late' : '');
+    document.getElementById('pc-ok').classList.add('hidden');
+    document.getElementById('pc-pin-bloco').classList.remove('hidden');
+    document.getElementById('pc-erro').textContent = '';
+    pcState.pin = '';
+    pcPintarDots_();
+    pcBuildTeclado_();
+    pcBloquearTeclado_(false);
+  }).catch(function(){
+    document.getElementById('pc-nome').textContent = 'Computador';
+    var est3 = document.getElementById('pc-estado');
+    est3.className = 'notice late';
+    est3.textContent = 'Erro de ligação. Tenta outra vez.';
+  });
+}
+
+function pcSubmeter_(){
+  if (pcState.busy) return;
+  var erro = document.getElementById('pc-erro');
+  erro.textContent = '';
+  if (pcState.pin.length < 4){ erro.textContent = 'PIN demasiado curto.'; return; }
+  var info = pcState.info || {};
+  if (info.ocupadoPor && !confirm('Este computador está a ser usado por ' + info.ocupadoPor + '.\n\nContinuar? A sessão dessa pessoa termina.')) return;
+  pcBloquearTeclado_(true);
+  gsRun('api_pcAbrirSessao', pcState.id, pcState.pin).then(function(res){
+    pcBloquearTeclado_(false);
+    if (!res.ok){
+      pcState.pin = ''; pcPintarDots_();
+      if (res.locked){ erro.textContent = 'Demasiadas tentativas. Tenta daqui a ' + (res.lockSeconds || 60) + 's.'; return; }
+      if (res.attemptsLeft){ erro.textContent = 'PIN não reconhecido. Restam ' + res.attemptsLeft + ' tentativa' + (res.attemptsLeft === 1 ? '' : 's') + '.'; return; }
+      var m = {
+        sem_periodo: 'Esta sala está fechada. Pede a um professor ou ao coordenador do CTE para abrir a sala.',
+        sem_janela: 'O período autorizado já terminou.',
+        computador_indisponivel: 'Este computador está fora de serviço.',
+        perfil_sem_sessao: 'Só os alunos registam a utilização do computador.',
+        ocupado: 'O sistema está ocupado. Tenta outra vez.',
+        modulo_inativo: 'O registo de utilização está desligado.'
+      };
+      erro.textContent = m[res.error] || 'Não foi possível iniciar a sessão.';
+      return;
+    }
+    pcState.sessao = res.sessao;
+    document.getElementById('pc-pin-bloco').classList.add('hidden');
+    document.getElementById('pc-ok').classList.remove('hidden');
+    document.getElementById('pc-ok-msg').textContent = res.renovada ? 'Sessão renovada.' : 'Sessão iniciada.';
+    var sub = 'Termina automaticamente às ' + pcHora_(res.sessao.fimPrevisto) + '.';
+    if (res.encerradas && res.encerradas.length) sub += ' A tua sessão anterior noutro computador foi fechada.';
+    document.getElementById('pc-ok-sub').textContent = sub;
+    playConfirmSound();
+  }).catch(function(){
+    pcBloquearTeclado_(false);
+    erro.textContent = 'Erro de ligação. Tenta outra vez.';
+  });
+}
+
+function pcTerminar_(){
+  var btn = document.getElementById('pc-terminar');
+  if (!pcState.pin){ pcBoot_(); return; }
+  btn.disabled = true;
+  gsRun('api_pcFecharSessao', pcState.id, pcState.pin).then(function(){
+    btn.disabled = false;
+    pcState.pin = '';
+    pcBoot_();
+  }).catch(function(){ btn.disabled = false; });
+}
+
+document.getElementById('pc-terminar').addEventListener('click', pcTerminar_);
+
+/* ============================================================
    ARRANQUE — só agora, com tudo já definido acima
    ============================================================ */
 var ICON_SUN = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
@@ -3653,9 +3811,10 @@ if (window.__IS_ADMIN__){
   bootAdmin();
 } else if (window.__IS_PROF__){
   bootProf_();
-} else if (window.__PC_ID__ || window.__SALA_ID__){
-  // QR do módulo de computadores (Fase 3): o fluxo de leitura chega na Fase 4.
-  show('scr-pc-stub');
+} else if (window.__PC_ID__){
+  pcBoot_();
+} else if (window.__SALA_ID__){
+  show('scr-sala-stub'); // a abertura de sala chega na Fase 6
 } else {
   bootKiosk();
 }

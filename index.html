@@ -444,10 +444,31 @@
     <button class="btn secondary block" id="kiosk-logout" type="button">Terminar sessão</button>
   </div>
 
-  <div id="scr-pc-stub" class="card hidden">
-    <span class="tag">computadores</span>
-    <h1 class="small">Ainda não disponível</h1>
-    <p class="muted">Este código QR pertence ao módulo de computadores. A leitura do posto e o registo de utilização entram na próxima atualização.</p>
+  <div id="scr-pc" class="card acc-teal hidden">
+    <span class="tag">posto de trabalho</span>
+    <h1 class="small" id="pc-nome">—</h1>
+    <p class="muted" id="pc-sala">—</p>
+    <div id="pc-estado" class="notice"></div>
+
+    <div id="pc-pin-bloco">
+      <p class="subtitle" id="pc-pin-hint">Introduz o teu PIN para começar.</p>
+      <div class="pin-dots" id="pc-pin-dots"></div>
+      <div class="keypad" id="pc-keypad"></div>
+      <div class="error center" id="pc-erro"></div>
+    </div>
+
+    <div id="pc-ok" class="hidden">
+      <div style="font-size:40px; text-align:center; margin:10px 0">✅</div>
+      <p class="center" id="pc-ok-msg"></p>
+      <p class="muted center" id="pc-ok-sub"></p>
+      <button class="btn secondary block" id="pc-terminar" type="button">Terminar sessão</button>
+    </div>
+  </div>
+
+  <div id="scr-sala-stub" class="card hidden">
+    <span class="tag">sala</span>
+    <h1 class="small">Abertura de sala</h1>
+    <p class="muted">Este código identifica a sala. A abertura extraordinária (com PIN do responsável) entra na próxima fase.</p>
   </div>
 
   <div id="scr-done" class="card acc-teal center hidden">
