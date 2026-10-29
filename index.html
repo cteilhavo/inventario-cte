@@ -458,7 +458,7 @@
   <div id="scr-pc" class="card acc-teal hidden">
     <span class="tag">posto de trabalho</span>
     <h1 class="small" id="pc-nome">—</h1>
-    <p class="muted" id="pc-sala">—</p>
+    <p class="muted" id="pc-sala-nome">—</p>
     <div id="pc-estado" class="notice"></div>
 
     <div id="pc-pin-bloco">
@@ -989,6 +989,32 @@
         <div class="muted" id="pc-summary" style="margin-top:8px"></div>
         <button class="btn secondary" id="pc-imprimir-lista" type="button">🖨 Imprimir etiquetas (o que estiver filtrado)</button>
         <div class="table-wrap"><table id="pc-table"><thead><tr><th>Computador</th><th>Sala</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="card">
+        <span class="tag">histórico</span>
+        <h2>Utilização dos computadores</h2>
+        <div class="grid3">
+          <div><label>De</label><input type="date" id="pch-de"></div>
+          <div><label>Até</label><input type="date" id="pch-ate"></div>
+          <div><label>Pesquisar</label><input type="text" id="pch-q" placeholder="Aluno, PC ou sala…" autocomplete="off"></div>
+        </div>
+        <div class="grid3">
+          <div><label>Sala</label><select id="pch-sala"><option value="">Todas</option></select></div>
+          <div><label>Computador</label><select id="pch-pc"><option value="">Todos</option></select></div>
+          <div><label>Mostrar</label><select id="pch-estado"><option value="">Todas</option><option value="ativa">Abertas agora</option><option value="fechada">Já terminadas</option></select></div>
+        </div>
+        <button class="btn secondary" id="pch-csv" type="button">⬇ Exportar CSV (o que estiver filtrado)</button>
+        <div class="muted" id="pch-resumo" style="margin-top:8px"></div>
+        <div class="table-wrap"><table id="pch-table"><thead><tr><th>Data</th><th>Início</th><th>Fim</th><th>Aluno</th><th>Computador</th><th>Sala</th><th>Terminou por</th></tr></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="card">
+        <span class="tag">aberturas</span>
+        <h2>Aberturas de sala</h2>
+        <p class="muted">Quem abriu cada sala fora do horário letivo, com que motivo e até quando (e quem fechou).</p>
+        <div class="table-wrap"><table id="pab-table"><thead><tr><th>Data</th><th>Sala</th><th>Motivo</th><th>Abriu</th><th>Início</th><th>Fecho previsto</th><th>Fecho efetivo</th></tr></thead><tbody></tbody></table></div>
+        <div class="muted" id="pab-resumo" style="margin-top:8px"></div>
       </div>
 
       <div class="card acc-amber">

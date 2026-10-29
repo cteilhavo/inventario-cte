@@ -3585,7 +3585,164 @@ function renderPcsTab(data){
   var total = (data.computadores || []).length;
   document.getElementById('pc-summary').textContent = lista.length + ' de ' + total + ' computador(es)' +
     (total === 0 ? ' — cria os postos no cartão acima.' : '.');
+
+  pcHistInit_();
 }
+
+/* ---- histórico de utilização e aberturas ---- */
+var pcHist = { de: '', ate: '', sessoes: [], aberturas: [], carregado: false, aCarregar: false };
+var PC_MOTIVO_FIM = {
+  horario: 'Fim do período', mudou_computador: 'Mudou de computador',
+  outro_aluno: 'Outro aluno', manual: 'Terminada pelo aluno', fecho_sala: 'Fecho da sala'
+};
+
+function pcDataISO_(d){
+  var p = function(n){ return (n < 10 ? '0' : '') + n; };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+function pcHistInit_(){
+  var de = document.getElementById('pch-de'), ate = document.getElementById('pch-ate');
+  if (!de || !ate) return;
+  if (!de.value){
+    // setDate (em vez de subtrair milissegundos) para não errar um dia nas mudanças de hora.
+    var hoje = new Date();
+    var inicio = new Date();
+    inicio.setDate(inicio.getDate() - 6);
+    de.value = pcDataISO_(inicio);
+    ate.value = pcDataISO_(hoje);
+  }
+  if (!pcHist.carregado && !pcHist.aCarregar) pcHistCarregar_();
+}
+
+function pcHistCarregar_(){
+  var de = document.getElementById('pch-de').value, ate = document.getElementById('pch-ate').value;
+  if (!de || !ate) return;
+  if (ate < de){ toast('A data final é anterior à inicial.'); return; }
+  pcHist.aCarregar = true;
+  document.getElementById('pch-resumo').textContent = 'A carregar…';
+  gsRunQ('api_adminPcHistorico', adminState.token, de, ate).then(function(res){
+    pcHist.aCarregar = false;
+    if (!res || !res.ok){ document.getElementById('pch-resumo').textContent = 'Não foi possível carregar o histórico.'; return; }
+    pcHist.de = res.de; pcHist.ate = res.ate;
+    pcHist.sessoes = res.sessoes || [];
+    pcHist.aberturas = res.aberturas || [];
+    pcHist.carregado = true;
+    pcHistPreencherFiltros_();
+    pcHistRender_();
+  }).catch(function(){
+    pcHist.aCarregar = false;
+    document.getElementById('pch-resumo').textContent = 'Erro de ligação.';
+  });
+}
+
+function pcHistPreencherFiltros_(){
+  [['pch-sala', 'sala', 'Todas'], ['pch-pc', 'computador', 'Todos']].forEach(function(cfg){
+    var el = document.getElementById(cfg[0]);
+    if (!el) return;
+    var atual = el.value;
+    var vals = {};
+    pcHist.sessoes.forEach(function(s){ if (s[cfg[1]]) vals[s[cfg[1]]] = true; });
+    el.innerHTML = '<option value="">' + cfg[2] + '</option>';
+    Object.keys(vals).sort().forEach(function(v){
+      var o = document.createElement('option'); o.value = v; o.textContent = v; el.appendChild(o);
+    });
+    el.value = atual;
+  });
+}
+
+function pcHistFiltradas_(){
+  var q = fold(document.getElementById('pch-q').value).trim();
+  var sala = document.getElementById('pch-sala').value;
+  var pc = document.getElementById('pch-pc').value;
+  var est = document.getElementById('pch-estado').value;
+  return pcHist.sessoes.filter(function(s){
+    if (sala && s.sala !== sala) return false;
+    if (pc && s.computador !== pc) return false;
+    if (est && s.estado !== est) return false;
+    if (q && fold(s.aluno + ' ' + s.computador + ' ' + s.sala).indexOf(q) === -1) return false;
+    return true;
+  });
+}
+
+function pcHoraCurta_(iso){
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  var p = function(n){ return (n < 10 ? '0' : '') + n; };
+  return p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+function pcHistRender_(){
+  var tb = document.querySelector('#pch-table tbody');
+  var lista = pcHistFiltradas_();
+  tb.innerHTML = '';
+  lista.forEach(function(s){
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>';
+    tr.children[0].textContent = pcHoraCurta_(s.inicio).split(' ')[0];
+    tr.children[1].textContent = pcHoraCurta_(s.inicio).split(' ')[1] || '';
+    tr.children[2].textContent = s.fim ? pcHoraCurta_(s.fim).split(' ')[1] : (s.estado === 'ativa' ? 'em curso' : '—');
+    tr.children[3].textContent = s.aluno;
+    tr.children[4].textContent = s.computador;
+    tr.children[5].textContent = s.sala;
+    tr.children[6].textContent = s.estado === 'ativa' ? '—' : (PC_MOTIVO_FIM[s.motivoFim] || s.motivoFim || '—');
+    if (s.estado === 'ativa') tr.className = 'new-user';
+    tb.appendChild(tr);
+  });
+  var ativas = lista.filter(function(s){ return s.estado === 'ativa'; }).length;
+  document.getElementById('pch-resumo').textContent =
+    lista.length + ' sessão(ões) entre ' + pcHist.de + ' e ' + pcHist.ate +
+    (ativas ? ' · ' + ativas + ' em curso' : '') +
+    (pcHist.sessoes.length >= 3000 ? ' · limite de 3000 registos atingido' : '') + '.';
+
+  var tab = document.querySelector('#pab-table tbody');
+  tab.innerHTML = '';
+  pcHist.aberturas.forEach(function(a){
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>';
+    tr.children[0].textContent = pcHoraCurta_(a.inicio).split(' ')[0];
+    tr.children[1].textContent = a.sala;
+    tr.children[2].textContent = a.motivo || '—';
+    tr.children[3].textContent = a.abriu || '—';
+    tr.children[4].textContent = pcHoraCurta_(a.inicio).split(' ')[1] || '';
+    tr.children[5].textContent = a.fimPrevisto ? pcHoraCurta_(a.fimPrevisto).split(' ')[1] : '—';
+    tr.children[6].textContent = a.fimEfetivo ? pcHoraCurta_(a.fimEfetivo).split(' ')[1] : (a.estado === 'aberta' ? 'em aberto' : '—');
+    tab.appendChild(tr);
+  });
+  document.getElementById('pab-resumo').textContent = pcHist.aberturas.length + ' abertura(s) no mesmo período.';
+}
+
+function pcHistCsv_(){
+  var lista = pcHistFiltradas_();
+  if (!lista.length){ toast('Não há registos para exportar.'); return; }
+  var linhas = [['Data', 'Início', 'Fim', 'Aluno', 'Perfil', 'Computador', 'Sala', 'Estado', 'Terminou por']];
+  lista.forEach(function(s){
+    linhas.push([
+      pcHoraCurta_(s.inicio).split(' ')[0],
+      pcHoraCurta_(s.inicio).split(' ')[1] || '',
+      s.fim ? pcHoraCurta_(s.fim).split(' ')[1] : '',
+      s.aluno, s.alunoRole, s.computador, s.sala,
+      s.estado === 'ativa' ? 'em curso' : 'terminada',
+      s.estado === 'ativa' ? '' : (PC_MOTIVO_FIM[s.motivoFim] || s.motivoFim || '')
+    ]);
+  });
+  var csv = '\uFEFF' + linhas.map(function(r){
+    return r.map(function(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(',');
+  }).join('\r\n');
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'utilizacao-computadores-' + pcHist.de + '_' + pcHist.ate + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+['pch-de', 'pch-ate'].forEach(function(id){
+  document.getElementById(id).addEventListener('change', function(){ pcHist.carregado = false; pcHistCarregar_(); });
+});
+['pch-q', 'pch-sala', 'pch-pc', 'pch-estado'].forEach(function(id){
+  document.getElementById(id).addEventListener('input', function(){ if (pcHist.carregado) pcHistRender_(); });
+  document.getElementById(id).addEventListener('change', function(){ if (pcHist.carregado) pcHistRender_(); });
+});
+document.getElementById('pch-csv').addEventListener('click', pcHistCsv_);
 
 document.getElementById('pc-criar').addEventListener('click', function(){
   var btn = this;
@@ -3716,7 +3873,7 @@ function pcEstadoTexto_(info){
 function pcBoot_(){
   show('scr-pc');
   document.getElementById('pc-nome').textContent = 'A carregar…';
-  document.getElementById('pc-sala').textContent = '';
+  document.getElementById('pc-sala-nome').textContent = '';
   gsRunQ('api_pcInfo', pcState.id).then(function(info){
     if (!info || !info.ok){
       document.getElementById('pc-nome').textContent = 'Computador';
@@ -3731,7 +3888,7 @@ function pcBoot_(){
     }
     pcState.info = info;
     document.getElementById('pc-nome').textContent = info.computador.nome;
-    document.getElementById('pc-sala').textContent = info.computador.sala || '';
+    document.getElementById('pc-sala-nome').textContent = info.computador.sala || '';
     var est2 = document.getElementById('pc-estado');
     est2.textContent = pcEstadoTexto_(info);
     est2.className = 'notice' + ((!info.periodo && !info.aberta) ? ' late' : '');
