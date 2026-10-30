@@ -2184,9 +2184,10 @@ document.getElementById('settings-notify-submit').addEventListener('click', func
   var emailDmg = document.getElementById('settings-email-danificado').value.trim();
   var emailStock = document.getElementById('settings-email-stock').value.trim();
   var emailPed = document.getElementById('settings-email-pedidos').value.trim();
+  var emailBugs = document.getElementById('settings-email-bugs').value.trim();
   var err = document.getElementById('settings-notify-error');
   err.textContent = '';
-  gsRun('api_adminSetNotifySettings', adminState.token, emailDmg, emailStock, emailPed).then(function(res){
+  gsRun('api_adminSetNotifySettings', adminState.token, emailDmg, emailStock, emailPed, emailBugs).then(function(res){
     if (!res.ok){ err.textContent = 'Não foi possível guardar.'; return; }
     toast('Emails de aviso guardados.');
   }).catch(function(){ err.textContent = 'Erro de ligação.'; });
@@ -2202,7 +2203,7 @@ function renderNotifyLog_(){
       td0.colSpan = 5; td0.className = 'muted'; td0.textContent = 'Ainda não houve nenhuma tentativa de envio.';
       tr0.appendChild(td0); tbody.appendChild(tr0); return;
     }
-    var tipos = { danificado: 'danificado', stock_baixo: 'stock baixo', teste: 'teste', pin: 'PIN', resumo: 'resumo semanal', backup: 'cópia de segurança', pedido: 'pedido de requisição', atraso: 'lembrete de atraso', feedback: 'feedback de professor' };
+    var tipos = { danificado: 'danificado', stock_baixo: 'stock baixo', teste: 'teste', pin: 'PIN', resumo: 'resumo semanal', backup: 'cópia de segurança', pedido: 'pedido de requisição', atraso: 'lembrete de atraso', feedback: 'feedback de professor', bug: 'bug do sistema' };
     var resultados = { enviado: '✅ enviado', erro: '❌ erro', ignorado: '⚠️ ignorado' };
     res.log.forEach(function(l){
       var tr = document.createElement('tr');
@@ -2223,13 +2224,14 @@ document.getElementById('settings-notify-test').addEventListener('click', functi
   var emailDmg = document.getElementById('settings-email-danificado').value.trim();
   var emailStock = document.getElementById('settings-email-stock').value.trim();
   var emailPed = document.getElementById('settings-email-pedidos').value.trim();
+  var emailBugs = document.getElementById('settings-email-bugs').value.trim();
   var err = document.getElementById('settings-notify-error');
   var out = document.getElementById('settings-notify-test-result');
   err.textContent = ''; out.textContent = '';
-  if (!emailDmg && !emailStock && !emailPed){ err.textContent = 'Preenche pelo menos um email para testar.'; return; }
+  if (!emailDmg && !emailStock && !emailPed && !emailBugs){ err.textContent = 'Preenche pelo menos um email para testar.'; return; }
   btn.disabled = true;
   // guarda primeiro o que está nos campos, para o teste usar exatamente isso
-  gsRun('api_adminSetNotifySettings', adminState.token, emailDmg, emailStock, emailPed).then(function(sv){
+  gsRun('api_adminSetNotifySettings', adminState.token, emailDmg, emailStock, emailPed, emailBugs).then(function(sv){
     if (!sv.ok){ btn.disabled = false; err.textContent = 'Não foi possível guardar.'; return; }
     return gsRun('api_adminSendTestEmail', adminState.token).then(function(res){
       btn.disabled = false;
@@ -2268,6 +2270,7 @@ function loadNotifySettings_(){
     document.getElementById('settings-email-danificado').value = res.emailDanificado || '';
     document.getElementById('settings-email-stock').value = res.emailStockBaixo || '';
     document.getElementById('settings-email-pedidos').value = res.emailPedidos || '';
+    document.getElementById('settings-email-bugs').value = res.emailBugs || '';
   }).catch(function(){});
 }
 
@@ -3245,35 +3248,76 @@ function pdfBytes_(str){ var b = new Uint8Array(str.length); for (var i = 0; i <
 /* ============================================================
    FEEDBACK (painel de administração)
    ============================================================ */
-var FB_TIPOS = { danificado: 'Equipamento danificado', melhoria: 'Sugestão de melhoria', aquisicao: 'Sugestão de aquisição', outro: 'Outro' };
+var FB_TIPOS = { bug: 'Bug do sistema', danificado: 'Equipamento danificado', melhoria: 'Sugestão de melhoria', aquisicao: 'Sugestão de aquisição', outro: 'Outro' };
 var FB_ESTADOS = { novo: 'Novo', visto: 'Visto', tratado: 'Tratado' };
+var BUG_SEV_LABELS = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
+
+function abrirBugDetalhes_(x){
+  var linhas = [
+    'Data: ' + fmtDateTime(x.criadoEm),
+    'Pessoa: ' + (x.nomeUser || '—'),
+    'Ecrã: ' + (x.origem || '—'),
+    'Gravidade: ' + (BUG_SEV_LABELS[x.severidade] || '—'),
+    'Contacto: ' + (x.contacto || '—'),
+    'Estado: ' + (FB_ESTADOS[x.estado] || x.estado || '—'),
+    '',
+    'Mensagem:',
+    x.mensagem || '—',
+    '',
+    'Contexto técnico:',
+    x.contexto || '—'
+  ];
+  document.getElementById('bug-detail-body').textContent = linhas.join('\n');
+  document.getElementById('bug-detail-modal').classList.remove('hidden');
+  document.body.classList.add('em-modal-open');
+  var b = document.getElementById('bug-detail-close'); if (b && b.focus) b.focus();
+}
+function fecharBugDetalhes_(){
+  document.getElementById('bug-detail-modal').classList.add('hidden');
+  document.body.classList.remove('em-modal-open');
+}
+
 function renderFbTab_(){
   if (!dashCache) return;
   var tbody = document.querySelector('#fb-table tbody');
   tbody.innerHTML = '';
   var list = dashCache.feedback || [];
+  var tipo = document.getElementById('fb-filter-tipo').value;
   var f = document.getElementById('fb-filter-estado').value;
   var q = fold(document.getElementById('fb-search').value).trim();
   var novos = list.filter(function(x){ return x.estado === 'novo'; }).length;
-  document.getElementById('fb-summary').textContent = novos + ' novo' + (novos === 1 ? '' : 's') + ' · ' + list.length + ' no total';
+  var bugs = list.filter(function(x){ return x.tipo === 'bug'; }).length;
+  document.getElementById('fb-summary').textContent = novos + ' novo' + (novos === 1 ? '' : 's') + ' · ' + bugs + ' bug' + (bugs === 1 ? '' : 's') + ' · ' + list.length + ' no total';
   var rows = list.filter(function(x){
+    if (tipo === 'bug' && x.tipo !== 'bug') return false;
+    if (tipo === 'feedback' && x.tipo === 'bug') return false;
     if (f && x.estado !== f) return false;
-    if (q && fold([x.nomeUser, x.itemNome, x.armarioNome, x.mensagem, FB_TIPOS[x.tipo]].join(' ')).indexOf(q) === -1) return false;
+    if (q && fold([x.nomeUser, x.itemNome, x.armarioNome, x.mensagem, x.origem, x.contacto, x.contexto, FB_TIPOS[x.tipo]].join(' ')).indexOf(q) === -1) return false;
     return true;
   });
   if (!rows.length){
     var tr0 = document.createElement('tr'), td0 = document.createElement('td');
-    td0.colSpan = 6; td0.className = 'muted'; td0.textContent = list.length ? 'Sem resultados com estes filtros.' : 'Ainda não há feedback.';
+    td0.colSpan = 6; td0.className = 'muted'; td0.textContent = list.length ? 'Sem resultados com estes filtros.' : 'Ainda não há feedback nem bugs.';
     tr0.appendChild(td0); tbody.appendChild(tr0); return;
   }
   rows.forEach(function(x){
+    var isBug = x.tipo === 'bug';
     var tr = document.createElement('tr');
     tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td>';
     if (x.estado === 'novo') tr.className = 'low';
     tr.children[0].textContent = fmtDateTime(x.criadoEm);
-    tr.children[1].textContent = x.nomeUser;
-    tr.children[2].textContent = FB_TIPOS[x.tipo] || x.tipo;
-    tr.children[3].textContent = [x.armarioNome, x.itemNome].filter(Boolean).join(' — ') || '—';
+    tr.children[1].textContent = x.nomeUser || '—';
+    tr.children[2].textContent = isBug
+      ? '🐞 Bug · ' + (BUG_SEV_LABELS[x.severidade] || 'Média')
+      : (FB_TIPOS[x.tipo] || x.tipo);
+    tr.children[3].textContent = isBug ? (x.origem || '—') : ([x.armarioNome, x.itemNome].filter(Boolean).join(' — ') || '—');
+    if (isBug && (x.contexto || x.contacto)){
+      var det = document.createElement('button');
+      det.type = 'button'; det.className = 'btn secondary'; det.textContent = 'Detalhes';
+      det.style.cssText = 'margin:4px 0 0;padding:2px 9px;font-size:11.5px;min-height:0';
+      det.addEventListener('click', function(){ abrirBugDetalhes_(x); });
+      tr.children[3].appendChild(det);
+    }
     tr.children[4].textContent = x.mensagem;
     tr.children[4].style.cssText = 'max-width:360px;white-space:normal';
     var sel = document.createElement('select'); sel.style.cssText = 'margin:0;min-width:110px';
@@ -3289,10 +3333,12 @@ function renderFbTab_(){
     tbody.appendChild(tr);
   });
 }
-['fb-filter-estado', 'fb-search'].forEach(function(id){
+['fb-filter-tipo', 'fb-filter-estado', 'fb-search'].forEach(function(id){
   document.getElementById(id).addEventListener('input', renderFbTab_);
   document.getElementById(id).addEventListener('change', renderFbTab_);
 });
+document.getElementById('bug-detail-close').addEventListener('click', fecharBugDetalhes_);
+document.getElementById('bug-detail-modal').addEventListener('click', function(e){ if (e.target === this) fecharBugDetalhes_(); });
 document.getElementById('prof-link-copy').addEventListener('click', function(){
   var t = document.getElementById('prof-link').textContent;
   try{ navigator.clipboard.writeText(t).then(function(){ toast('Link copiado.'); }, function(){ toast('Seleciona e copia o link manualmente.'); }); }
@@ -3972,7 +4018,7 @@ function renderProfFb_(){
     var tr = document.createElement('tr'); tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td>';
     tr.children[0].textContent = fmtDateTime(x.criadoEm);
     tr.children[1].textContent = FB_TIPOS[x.tipo] || x.tipo;
-    tr.children[2].textContent = [x.armarioNome, x.itemNome].filter(Boolean).join(' — ') || '—';
+    tr.children[2].textContent = x.tipo === 'bug' ? (x.origem || '—') : ([x.armarioNome, x.itemNome].filter(Boolean).join(' — ') || '—');
     tr.children[3].textContent = x.mensagem; tr.children[3].style.cssText = 'max-width:320px;white-space:normal';
     tr.children[4].textContent = FB_ESTADOS[x.estado] || x.estado;
     tbody.appendChild(tr);
@@ -4848,6 +4894,139 @@ function salaFechar_(){
 document.getElementById('sala-abrir').addEventListener('click', salaAbrir_);
 document.getElementById('sala-fechar').addEventListener('click', salaFechar_);
 document.getElementById('sala-voltar').addEventListener('click', salaBoot_);
+
+/* ============================================================
+   REPORTAR BUGS — disponível em todos os ecrãs
+   ============================================================ */
+function bugVisivel_(id){
+  var el = document.getElementById(id);
+  return !!(el && !el.classList.contains('hidden'));
+}
+function bugTabLabel_(rootSel, panelPrefix){
+  var p = document.querySelector(rootSel + ' .panel.active');
+  if (!p) return '';
+  var tab = p.id.replace(panelPrefix, '');
+  var b = document.querySelector(rootSel + ' .tab-btn[data-tab="' + tab + '"]');
+  return b ? (b.dataset.label || b.textContent.trim()) : '';
+}
+function bugOrigem_(){
+  if (window.__IS_ADMIN__){
+    if (bugVisivel_('scr-admin-setup')) return 'Administração · primeira configuração';
+    if (bugVisivel_('scr-admin-login')) return 'Administração · entrar';
+    return 'Administração · ' + (bugTabLabel_('#admin-root', 'tab-') || 'painel');
+  }
+  if (window.__IS_PROF__){
+    if (!bugVisivel_('scr-prof-dash')) return 'Área do professor · entrar';
+    return 'Área do professor · ' + (bugTabLabel_('#prof-root', 'ptab-') || 'início');
+  }
+  if (window.__PC_ID__){
+    var pc = pcState && pcState.info && pcState.info.computador;
+    var nomePc = pc ? pc.nome : (pcState && pcState.id) || 'posto';
+    var salaPc = pc && pc.sala ? ' · ' + pc.sala : '';
+    return 'Posto de trabalho · ' + nomePc + salaPc + (bugVisivel_('pc-ok') ? ' · sessão aberta' : '');
+  }
+  if (window.__SALA_ID__){
+    var sl = salaState && salaState.info && salaState.info.sala;
+    var nomeSala = sl ? sl.nome : (salaState && salaState.id) || 'sala';
+    return 'Mesa do professor · ' + nomeSala;
+  }
+  var cab = (kioskState && (kioskState.cabLabel || (kioskState.cabinet && (kioskState.cabinet.nome + ' — ' + kioskState.cabinet.sala)))) || '';
+  if (bugVisivel_('scr-picker')) return 'Quiosque · escolher valência';
+  if (bugVisivel_('scr-pin')) return 'Quiosque · identificação' + (cab ? ' · ' + cab : '');
+  if (bugVisivel_('scr-kiosk')) return 'Quiosque · valência' + (cab ? ' · ' + cab : '');
+  if (bugVisivel_('scr-done')) return 'Quiosque · confirmação' + (cab ? ' · ' + cab : '');
+  return 'Quiosque';
+}
+function bugContexto_(){
+  return [
+    'Endereço: ' + location.origin + location.pathname + location.search,
+    'Ecrã: ' + bugOrigem_(),
+    'Browser: ' + (navigator.userAgent || '—'),
+    'Idioma: ' + (navigator.language || '—'),
+    'Janela: ' + window.innerWidth + '×' + window.innerHeight + ' (densidade ' + (window.devicePixelRatio || 1) + 'x)',
+    'Tema: ' + currentTheme(),
+    'Hora local: ' + new Date().toLocaleString('pt-PT')
+  ].join('\n');
+}
+function bugSessao_(){
+  return {
+    adminToken: (typeof adminState !== 'undefined' && adminState.token) || '',
+    profToken: (typeof profState !== 'undefined' && profState.token) || '',
+    kioskToken: (typeof kioskState !== 'undefined' && kioskState.token) || ''
+  };
+}
+
+var bugLastFocus = null;
+var bugPedidoId = '';
+function bugAbrir_(){
+  bugLastFocus = document.activeElement || null;
+  bugPedidoId = newClientId_();
+  document.getElementById('bug-error').textContent = '';
+  document.getElementById('bug-modal').classList.remove('hidden');
+  document.body.classList.add('em-modal-open');
+  var t = document.getElementById('bug-msg');
+  if (t && t.focus) t.focus();
+}
+function bugFechar_(){
+  var terminado = !document.getElementById('bug-success').classList.contains('hidden');
+  document.getElementById('bug-modal').classList.add('hidden');
+  document.body.classList.remove('em-modal-open');
+  if (terminado) bugReset_();
+  if (bugLastFocus && bugLastFocus.focus){ try{ bugLastFocus.focus(); }catch(e){} }
+}
+function bugReset_(){
+  document.getElementById('bug-msg').value = '';
+  document.getElementById('bug-contacto').value = '';
+  document.getElementById('bug-sev').value = 'media';
+  document.getElementById('bug-error').textContent = '';
+  document.getElementById('bug-success-ref').textContent = '';
+  document.getElementById('bug-success').classList.add('hidden');
+  document.getElementById('bug-form-wrap').classList.remove('hidden');
+  var btn = document.getElementById('bug-send'); btn.disabled = false; btn.textContent = 'Enviar relatório';
+}
+function bugEnviar_(){
+  var btn = document.getElementById('bug-send');
+  var err = document.getElementById('bug-error');
+  var msg = document.getElementById('bug-msg').value.trim();
+  err.textContent = '';
+  if (msg.length < 10){ err.textContent = 'Descreve o problema com pelo menos 10 carateres.'; document.getElementById('bug-msg').focus(); return; }
+  btn.disabled = true; btn.textContent = 'A enviar…';
+  var dados = {
+    pedidoId: bugPedidoId,
+    mensagem: msg,
+    severidade: document.getElementById('bug-sev').value,
+    contacto: document.getElementById('bug-contacto').value.trim(),
+    origem: bugOrigem_(),
+    contexto: bugContexto_()
+  };
+  gsRun('api_reportBug', dados, bugSessao_()).then(function(res){
+    btn.disabled = false; btn.textContent = 'Enviar relatório';
+    if (!res || !res.ok){
+      err.textContent = (res && res.error === 'mensagem_curta') ? 'Descreve o problema com pelo menos 10 carateres.'
+        : (res && res.error === 'demasiado_rapido') ? 'Foram enviados demasiados relatórios nos últimos segundos. Tenta daqui a um minuto.'
+        : 'Não foi possível enviar o relatório. Tenta outra vez.';
+      return;
+    }
+    document.getElementById('bug-form-wrap').classList.add('hidden');
+    document.getElementById('bug-success').classList.remove('hidden');
+    document.getElementById('bug-success-ref').textContent = res.duplicado ? 'Este relatório já tinha sido recebido.' : '';
+    var b = document.getElementById('bug-success-close'); if (b && b.focus) b.focus();
+  }).catch(function(){
+    btn.disabled = false; btn.textContent = 'Enviar relatório';
+    err.textContent = 'Erro de ligação. O relatório não foi enviado.';
+  });
+}
+document.getElementById('bug-fab').addEventListener('click', bugAbrir_);
+document.getElementById('bug-close').addEventListener('click', bugFechar_);
+document.getElementById('bug-cancel').addEventListener('click', bugFechar_);
+document.getElementById('bug-send').addEventListener('click', bugEnviar_);
+document.getElementById('bug-success-close').addEventListener('click', bugFechar_);
+document.getElementById('bug-modal').addEventListener('click', function(e){ if (e.target === this) bugFechar_(); });
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Escape') return;
+  if (bugVisivel_('bug-detail-modal')){ fecharBugDetalhes_(); return; }
+  if (bugVisivel_('bug-modal')){ bugFechar_(); }
+});
 
 /* ============================================================
    ARRANQUE — só agora, com tudo já definido acima

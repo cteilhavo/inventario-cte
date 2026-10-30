@@ -463,6 +463,39 @@
     .em-modal-body{border-radius:0}
   }
 
+  /* ===== reportar bugs (botão global + formulário) ===== */
+  #bug-fab{
+    position:fixed; right:18px; bottom:18px; z-index:80; display:inline-flex; align-items:center; gap:8px;
+    padding:11px 16px; border:1px solid var(--border-strong); border-radius:999px; background:var(--surface);
+    color:var(--ink); font:inherit; font-size:13px; font-weight:600; cursor:pointer; box-shadow:var(--shadow);
+  }
+  #bug-fab:hover{border-color:var(--danger); color:var(--danger)}
+  #bug-fab .bug-ic{font-size:17px; line-height:1}
+  .bug-modal-card{width:min(620px,100%)}
+  .bug-modal .em-modal-body{background:var(--bg)}
+  .bug-modal .em-modal-body label:first-child{margin-top:0}
+  #bug-msg{min-height:130px; line-height:1.55}
+  .bug-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:14px}
+  .bug-actions .btn{margin-top:0}
+  .bug-success{text-align:center; padding:10px 4px 4px}
+  .bug-success .bug-ok{font-size:42px; line-height:1; margin-bottom:10px}
+  .bug-success h3{font-family:"Outfit",sans-serif; font-size:20px; text-transform:none; letter-spacing:-.01em; color:var(--ink); margin:0 0 8px}
+  .bug-detail-pre{
+    margin:0; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--surface-2);
+    font-family:ui-monospace,"SF Mono",Consolas,monospace; font-size:12.5px; line-height:1.55; color:var(--ink);
+    white-space:pre-wrap; word-break:break-word;
+  }
+  @media (max-width:760px){
+    #bug-fab{bottom:calc(78px + env(safe-area-inset-bottom,0px)); right:12px; padding:11px 14px}
+  }
+  @media (max-width:560px){
+    #bug-fab .bug-txt{display:none}
+    #bug-fab{width:48px; height:48px; padding:0; justify-content:center; font-size:22px}
+    .bug-actions{display:grid; grid-template-columns:1fr 1fr}
+    .bug-actions .btn{width:100%}
+  }
+  @media print{ #bug-fab{display:none !important} }
+
   /* ===== comunicados gerais por e-mail ===== */
   .cm-card{max-width:920px}
   .cm-info{display:flex; align-items:flex-start; gap:9px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:11px 13px; font-size:13px; color:var(--ink-soft); line-height:1.45; margin:6px 0 4px}
@@ -1000,15 +1033,16 @@
 
     <div class="panel" id="tab-fb">
       <div class="card acc-teal">
-        <span class="tag">professores</span>
-        <h2>Feedback dos professores</h2>
-        <p class="muted">Equipamento encontrado danificado, sugestões de melhoria e de aquisição. Marca como visto ou tratado à medida que for resolvido.</p>
+        <span class="tag">toda a aplicação</span>
+        <h2>Feedback e bugs</h2>
+        <p class="muted">Bugs reportados em qualquer ecrã da aplicação e feedback enviado pelos professores (equipamento danificado, sugestões de melhoria e de aquisição). Marca como visto ou tratado à medida que for resolvido.</p>
         <div class="grid3">
+          <div><label>Tipo</label><select id="fb-filter-tipo"><option value="">Tudo</option><option value="bug">Bugs do sistema</option><option value="feedback">Feedback dos professores</option></select></div>
           <div><label>Estado</label><select id="fb-filter-estado"><option value="novo">Novos</option><option value="">Todos</option><option value="visto">Vistos</option><option value="tratado">Tratados</option></select></div>
-          <div><label>Pesquisar</label><input type="text" id="fb-search" placeholder="Professor, item, mensagem…" autocomplete="off"></div>
-          <div><label>&nbsp;</label><div id="fb-summary" class="muted" style="margin-top:10px"></div></div>
+          <div><label>Pesquisar</label><input type="text" id="fb-search" placeholder="Pessoa, ecrã, item, mensagem…" autocomplete="off"></div>
         </div>
-        <div class="table-wrap"><table id="fb-table"><thead><tr><th>Data</th><th>Professor</th><th>Assunto</th><th>Onde</th><th>Mensagem</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+        <div id="fb-summary" class="muted" style="margin-top:8px"></div>
+        <div class="table-wrap"><table id="fb-table"><thead><tr><th>Data</th><th>Pessoa</th><th>Tipo</th><th>Onde</th><th>Mensagem</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
       </div>
     </div>
 
@@ -1254,6 +1288,8 @@
         <input type="email" id="settings-email-stock" placeholder="ex.: coordenador.cte@escola.pt">
         <label>Email para pedidos de requisição prolongada (se vazio, usa o de stock baixo)</label>
         <input type="email" id="settings-email-pedidos" placeholder="ex.: responsavel@escola.pt">
+        <label>Email para bugs do sistema (se vazio, usa o de pedidos)</label>
+        <input type="email" id="settings-email-bugs" placeholder="ex.: responsavel@escola.pt">
         <button class="btn" id="settings-notify-submit" type="button">Guardar emails de aviso</button>
         <button class="btn secondary" id="settings-notify-test" type="button">✉️ Guardar e enviar email de teste</button>
         <div class="error" id="settings-notify-error"></div>
@@ -1340,6 +1376,62 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- Reportar um bug: disponível em todos os ecrãs (quiosque, professor, administração, PC e sala) -->
+<button id="bug-fab" type="button" title="Reportar um bug" aria-label="Reportar um bug"><span class="bug-ic" aria-hidden="true">🐞</span><span class="bug-txt">Reportar bug</span></button>
+
+<div id="bug-modal" class="em-modal bug-modal hidden" role="dialog" aria-modal="true" aria-labelledby="bug-modal-title">
+  <div class="em-modal-card bug-modal-card" role="document">
+    <div class="em-modal-head">
+      <div>
+        <span class="em-modal-kicker">Ajuda-nos a corrigir</span>
+        <h3 id="bug-modal-title">Reportar um bug</h3>
+        <p class="em-hint" id="bug-modal-sub">Descreve o que correu mal. O ecrã onde estavas é registado automaticamente.</p>
+      </div>
+      <button class="icon-btn" id="bug-close" type="button" aria-label="Fechar" title="Fechar">✕</button>
+    </div>
+    <div class="em-modal-body">
+      <div id="bug-form-wrap">
+        <label for="bug-sev">Gravidade</label>
+        <select id="bug-sev">
+          <option value="baixa">Baixa — incomoda, mas dá para trabalhar</option>
+          <option value="media" selected>Média — impede uma tarefa</option>
+          <option value="alta">Alta — bloqueia a utilização</option>
+        </select>
+        <label for="bug-msg">O que aconteceu? <span class="cm-req">*</span></label>
+        <textarea id="bug-msg" rows="6" maxlength="2000" placeholder="Ex.: ao clicar em «Enviar», apareceu uma mensagem de erro e o movimento não ficou registado."></textarea>
+        <label for="bug-contacto">Contacto (opcional)</label>
+        <input type="text" id="bug-contacto" maxlength="150" autocomplete="off" placeholder="Nome ou email, se quiseres que te respondamos">
+        <p class="cm-hint" id="bug-contexto-hint">São registados automaticamente o ecrã, o endereço, o browser e o tamanho da janela. Não são enviados PINs nem passwords.</p>
+        <div class="error" id="bug-error"></div>
+        <div class="bug-actions">
+          <button class="btn secondary" id="bug-cancel" type="button">Cancelar</button>
+          <button class="btn" id="bug-send" type="button">Enviar relatório</button>
+        </div>
+      </div>
+      <div id="bug-success" class="bug-success hidden" role="status" aria-live="polite">
+        <div class="bug-ok" aria-hidden="true">✅</div>
+        <h3>Relatório enviado</h3>
+        <p>Obrigado! O responsável vai analisar o problema.</p>
+        <p class="muted" id="bug-success-ref"></p>
+        <button class="btn" id="bug-success-close" type="button">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="bug-detail-modal" class="em-modal bug-modal hidden" role="dialog" aria-modal="true" aria-labelledby="bug-detail-title">
+  <div class="em-modal-card bug-modal-card" role="document">
+    <div class="em-modal-head">
+      <div>
+        <span class="em-modal-kicker">Painel · Feedback</span>
+        <h3 id="bug-detail-title">Detalhes do bug</h3>
+      </div>
+      <button class="icon-btn" id="bug-detail-close" type="button" aria-label="Fechar" title="Fechar">✕</button>
+    </div>
+    <div class="em-modal-body"><pre class="bug-detail-pre" id="bug-detail-body"></pre></div>
+  </div>
+</div>
 
 <div id="em-preview-modal" class="em-modal hidden" role="dialog" aria-modal="true" aria-labelledby="em-preview-title">
   <div class="em-modal-card" role="document">
