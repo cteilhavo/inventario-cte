@@ -354,6 +354,15 @@
   #prof-root.stage{max-width:none; padding:0}
   #scr-prof-login{max-width:420px; width:calc(100% - 32px); margin:8vh auto 0}
   .prof-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap:12px}
+  /* alternador do histórico (movimentos / aberturas de sala) */
+  .hist-tabs{display:flex; gap:4px; padding:4px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; max-width:520px; margin:0 0 10px}
+  .hist-tab{flex:1; min-height:38px; padding:7px 12px; border:0; border-radius:9px; background:transparent; color:var(--ink-soft); font:inherit; font-size:13.5px; font-weight:600; cursor:pointer; white-space:nowrap}
+  .hist-tab:hover{background:var(--surface-hover); color:var(--ink)}
+  .hist-tab.active{background:var(--surface); color:var(--mint); box-shadow:0 1px 4px rgba(29,36,51,.12)}
+  @media (max-width:560px){
+    .hist-tabs{max-width:none}
+    .hist-tab{font-size:12.5px; padding:8px 6px}
+  }
 
   /* ===== computadores: etiquetas para impressão ===== */
   #print-area{display:none}
@@ -452,6 +461,45 @@
     .em-modal{padding:0}
     .em-modal-card{width:100%; max-height:100dvh; height:100dvh; border-radius:0; border:0}
     .em-modal-body{border-radius:0}
+  }
+
+  /* ===== comunicados gerais por e-mail ===== */
+  .cm-card{max-width:920px}
+  .cm-info{display:flex; align-items:flex-start; gap:9px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:11px 13px; font-size:13px; color:var(--ink-soft); line-height:1.45; margin:6px 0 4px}
+  .cm-info b{color:var(--ink)}
+  .cm-dot{width:8px; height:8px; border-radius:50%; background:var(--mint); flex:none; margin-top:6px}
+  .cm-extra{color:var(--ink-faint); display:block; font-size:12px; margin-top:2px}
+  .cm-field{margin-top:14px}
+  .cm-field label{margin-top:0}
+  .cm-req{color:var(--danger)}
+  .cm-hint{font-size:12px; color:var(--ink-faint); margin:5px 0 0; line-height:1.5}
+  .cm-hint code{font-size:11.5px}
+  .cm-toolbar{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 6px}
+  .cm-toolbar button{min-height:38px; min-width:40px; padding:6px 11px; border:1px solid var(--border-strong); background:var(--surface-2); color:var(--ink-soft); border-radius:8px; font:inherit; font-size:13px; font-weight:600; cursor:pointer; line-height:1}
+  .cm-toolbar button:hover{background:var(--surface-hover); color:var(--ink); border-color:var(--mint)}
+  .cm-toolbar button:active{background:var(--mint); color:var(--mint-ink); border-color:var(--mint)}
+  #cm-intro{min-height:74px; line-height:1.55}
+  #cm-corpo{min-height:210px; line-height:1.6; font-size:14.5px}
+  .cm-signature{margin-top:16px; border:1px solid var(--border); border-radius:14px; background:var(--surface-2); padding:11px 12px}
+  .cm-signature-head{display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin-bottom:9px}
+  .cm-signature-paper{padding:12px 14px; font-size:13.5px}
+  .cm-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:16px}
+  .cm-actions .btn{margin-top:0}
+  .cm-actions #cm-send{min-width:180px}
+  .cm-result{margin-top:14px; border:1px solid var(--border-strong); border-radius:12px; padding:12px 14px; background:var(--surface-2); font-size:13.5px; color:var(--ink-soft); line-height:1.5}
+  .cm-result.ok{border-color:var(--cnt-ink); background:var(--cnt); color:var(--cnt-ink)}
+  .cm-result.warn{border-color:var(--amber); background:var(--amber-dim); color:var(--ink)}
+  .cm-result.err{border-color:var(--danger); background:var(--danger-dim); color:var(--ink)}
+  .cm-result p{margin:0 0 6px; color:inherit; font-size:inherit}
+  .cm-result ul{margin:6px 0 8px 18px; padding:0; color:inherit}
+  .cm-result li{margin:2px 0}
+  .cm-note{font-size:12px; opacity:.85; margin:8px 0 0}
+  @media (max-width:560px){
+    #cm-corpo{min-height:180px}
+    .cm-actions{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+    .cm-actions #cm-send{grid-column:1 / -1; grid-row:1; width:100%}
+    .cm-actions #cm-preview, .cm-actions #cm-clear{grid-row:2}
+    .cm-toolbar button{flex:1 1 auto; justify-content:center}
   }
 </style>
 </head>
@@ -700,18 +748,23 @@
         <div class="card">
           <span class="tag">pessoal</span>
           <h2>O meu histórico</h2>
+          <div class="hist-tabs" role="tablist" aria-label="Tipo de histórico">
+            <button class="hist-tab active" type="button" data-hist="mov" role="tab" aria-selected="true">Movimentos</button>
+            <button class="hist-tab" type="button" data-hist="aberturas" role="tab" aria-selected="false">Aberturas de sala</button>
+          </div>
           <div class="grid3">
-            <div><label>Pesquisar</label><input type="text" id="phist-search" placeholder="Item ou valência…" autocomplete="off"></div>
+            <div><label>Pesquisar</label><input type="text" id="phist-search" placeholder="Item, valência, sala ou motivo…" autocomplete="off"></div>
             <div><label>De</label><input type="date" id="phist-from"></div>
             <div><label>Até</label><input type="date" id="phist-to"></div>
           </div>
-          <div class="grid3">
+          <div class="grid3" id="phist-tipo-row">
             <div><label>Tipo</label><select id="phist-tipo"><option value="">Todos os tipos</option><option value="consumo">Consumo</option><option value="levantamento">Requisição</option><option value="devolucao">Devolução</option></select></div>
-            <div><label>&nbsp;</label><div id="phist-summary" class="muted" style="margin-top:10px"></div></div>
           </div>
+          <p id="phist-summary" class="muted" style="margin:4px 0 0"></p>
           <button class="btn secondary" id="phist-csv" type="button">⬇ Exportar CSV</button>
           <button class="btn secondary" id="phist-pdf" type="button">📄 Exportar PDF</button>
-          <div class="table-wrap"><table id="phist-table"><thead><tr><th>Data/Hora</th><th>Valência</th><th>Item</th><th>Tipo</th><th>Qtd.</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+          <div class="table-wrap" id="phist-mov-wrap"><table id="phist-table"><thead><tr><th>Data/Hora</th><th>Valência</th><th>Item</th><th>Tipo</th><th>Qtd.</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+          <div class="table-wrap hidden" id="phist-aberturas-wrap"><table id="phist-aberturas-table"><thead><tr><th>Início</th><th>Sala</th><th>Motivo</th><th>Fim previsto</th><th>Fim</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
 
@@ -780,6 +833,8 @@
       <button class="tab-btn" data-tab="hist" data-label="Histórico" title="Histórico" aria-label="Histórico"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">Histórico</span></button>
         <div class="nav-group">Pessoas</div>
       <button class="tab-btn" data-tab="users" data-label="Utilizadores" title="Utilizadores" aria-label="Utilizadores"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.5a3.5 3.5 0 010 7"/><path d="M18 14.5c2.2.6 3.5 2.4 3.5 5"/></svg><span class="lbl">Utilizadores</span></button>
+        <div class="nav-group">Comunicação</div>
+      <button class="tab-btn" data-tab="comunicados" data-label="Comunicados por e-mail" title="Comunicados por e-mail" aria-label="Comunicados por e-mail"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5 12 13l8.5-6.5"/></svg><span class="lbl">Comunicados por e-mail</span></button>
         <div class="nav-group">Sistema</div>
       <button class="tab-btn" data-tab="cabs" data-label="Valências & itens" title="Valências & itens" aria-label="Valências & itens"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="lbl">Valências & itens</span></button>
       <button class="tab-btn" data-tab="mob" data-label="Mobiliário" title="Mobiliário" aria-label="Mobiliário"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v6H5z"/><path d="M4 10h16v4H4z"/><path d="M6 14v6M18 14v6"/></svg><span class="lbl">Mobiliário</span></button>
@@ -1116,6 +1171,57 @@
       </div>
     </div>
 
+    <div class="panel" id="tab-comunicados">
+      <div class="card cm-card">
+        <span class="tag">comunicação institucional</span>
+        <h2>Comunicados por e-mail</h2>
+        <p class="muted">Escreve um comunicado para todos os utilizadores do CTE — novas funcionalidades, equipamentos disponíveis, avisos ou novidades. A assinatura da Coordenação é acrescentada automaticamente e não pode ser editada.</p>
+
+        <div class="cm-info" id="cm-info" role="status" aria-live="polite">A contar destinatários…</div>
+
+        <div class="cm-field">
+          <label for="cm-assunto">Assunto <span class="cm-req">*</span></label>
+          <input id="cm-assunto" type="text" maxlength="150" autocomplete="off" placeholder="ex.: Novos equipamentos disponíveis no FabLab">
+        </div>
+
+        <div class="cm-field">
+          <label for="cm-intro">Introdução <span class="cm-req">*</span></label>
+          <textarea id="cm-intro" rows="2" maxlength="1000" placeholder="ex.: Bom dia a todos, temos novidades no Inventário CTE."></textarea>
+          <p class="cm-hint">Saudação ou texto inicial, escrito por ti. Não é gerado automaticamente.</p>
+        </div>
+
+        <div class="cm-field">
+          <label for="cm-corpo">Corpo da mensagem <span class="cm-req">*</span></label>
+          <div class="cm-toolbar" role="toolbar" aria-label="Formatação do corpo">
+            <button type="button" data-cm-fmt="bold" title="Negrito (Ctrl+B)" aria-label="Negrito"><b>B</b></button>
+            <button type="button" data-cm-fmt="italic" title="Itálico (Ctrl+I)" aria-label="Itálico"><i>I</i></button>
+            <button type="button" data-cm-fmt="ul" title="Lista com marcadores" aria-label="Lista com marcadores">• Lista</button>
+            <button type="button" data-cm-fmt="link" title="Inserir ligação" aria-label="Inserir ligação">🔗 Ligação</button>
+          </div>
+          <textarea id="cm-corpo" rows="12" maxlength="20000" placeholder="Escreve aqui o comunicado…"></textarea>
+          <p class="cm-hint"><b>**negrito**</b> · <i>_itálico_</i> · linhas começadas por «- » viram lista · <code>[texto](https://exemplo.pt)</code> cria uma ligação. Uma linha em branco separa parágrafos.</p>
+        </div>
+
+        <div class="cm-signature">
+          <div class="cm-signature-head">
+            <span class="em-auto">automática</span>
+            <span class="cm-hint" style="margin:0">Assinatura fixa, acrescentada ao e-mail final. Não pode ser editada nem removida.</span>
+          </div>
+          <div class="em-mail-paper cm-signature-paper" id="cm-signature-box">
+            <p style="margin:0"><b>Coordenação CTE</b><br><span style="color:#8A8F98;font-size:12px">Mensagem automática do Inventário CTE</span></p>
+          </div>
+        </div>
+
+        <div class="cm-actions">
+          <button class="btn secondary" id="cm-preview" type="button">Pré-visualizar</button>
+          <button class="btn" id="cm-send" type="button">Enviar comunicado</button>
+          <button class="btn danger" id="cm-clear" type="button">Limpar</button>
+        </div>
+        <div class="error" id="cm-error"></div>
+        <div class="cm-result hidden" id="cm-result" role="status" aria-live="polite"></div>
+      </div>
+    </div>
+
     <div class="panel" id="tab-settings">
       <div class="card">
         <span class="tag">segurança</span>
@@ -1241,7 +1347,7 @@
       <div>
         <span class="em-modal-kicker">Pré-visualização</span>
         <h3 id="em-preview-title">—</h3>
-        <p class="em-hint">Nome e PIN de exemplo. No envio são usados os dados reais do destinatário.</p>
+        <p class="em-hint" id="em-preview-note">Nome e PIN de exemplo. No envio são usados os dados reais do destinatário.</p>
       </div>
       <button class="icon-btn" id="em-preview-close" type="button" aria-label="Fechar pré-visualização" title="Fechar">✕</button>
     </div>

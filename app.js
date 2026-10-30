@@ -39,6 +39,7 @@ var QUIET_ = {
   api_adminRestock: 1, api_adminUpdateItemThreshold: 1, api_adminDeleteUser: 1, api_adminSetUserActive: 1,
   api_adminDeleteMovement: 1, api_adminUpdateMovementQty: 1, api_adminSetDamageStatus: 1, api_adminDecideRequest: 1,
   api_adminGetNotifyLog: 1, api_adminGetNotifySettings: 1, api_adminGetAutomation: 1,
+  api_adminComunicadoInfo: 1, api_adminPreviewComunicado: 1,
   api_adminCreateSala: 1, api_adminRenameSala: 1, api_adminDeleteSala: 1, api_adminMobCreate: 1, api_adminMobUpdate: 1, api_adminMobDelete: 1,
   api_adminSetFeedbackState: 1, api_adminCancelarReserva: 1, api_profLogin: 1, api_profData: 1, api_profLogout: 1,
   // quiosque: validar o PIN e carregar a valência nunca bloqueiam o ecrã (só registar movimentos e pedidos)
@@ -1344,13 +1345,16 @@ function emBindPreviewModal_(){
     if (ev.key === 'Escape' && !modal.classList.contains('hidden')) closeEmailPreviewModal_();
   });
 }
-function openEmailPreviewModal_(assunto, html){
+function openEmailPreviewModal_(assunto, html, nota){
   var modal = document.getElementById('em-preview-modal');
   if (!modal) return;
   var titulo = document.getElementById('em-preview-title');
   var body = document.getElementById('em-preview-body');
+  var hint = document.getElementById('em-preview-note');
   if (titulo) titulo.textContent = assunto || 'Sem assunto';
   if (body) body.innerHTML = html || '';
+  // Nota genérica por omissão (modelos de PIN); os comunicados passam a sua própria nota.
+  if (hint) hint.textContent = nota || 'Nome e PIN de exemplo. No envio são usados os dados reais do destinatário.';
   modal.classList.remove('hidden');
   document.body.classList.add('em-modal-open');
   var close = document.getElementById('em-preview-close');
@@ -1404,7 +1408,8 @@ var TAB_RENDER = {
   mob: function(){ renderMobTab_(); },
   pcs: function(){ renderPcsTab(dashCache); },
   charts: function(){ renderChartsTab(); },
-  settings: function(){ initEmailModelos_(); }
+  settings: function(){ initEmailModelos_(); },
+  comunicados: function(){ initComunicados_(); }
 };
 var _dirty = {};
 function activeTab_(){
@@ -2824,7 +2829,7 @@ document.querySelectorAll('.home-tile').forEach(function(t){
 });
 
 /* ---- "Ir para…" ---- */
-var GOTO_PAGES = [['home', 'Início'], ['stock', 'Stock atual'], ['req', 'Pedidos'], ['dmg', 'Danificados'], ['fb', 'Feedback'], ['rsv', 'Reservas'], ['hist', 'Histórico'], ['users', 'Utilizadores'], ['cabs', 'Valências & itens'], ['mob', 'Mobiliário'], ['pcs', 'Computadores'], ['charts', 'Gráficos'], ['settings', 'Definições']];
+var GOTO_PAGES = [['home', 'Início'], ['stock', 'Stock atual'], ['req', 'Pedidos'], ['dmg', 'Danificados'], ['fb', 'Feedback'], ['rsv', 'Reservas'], ['hist', 'Histórico'], ['users', 'Utilizadores'], ['cabs', 'Valências & itens'], ['mob', 'Mobiliário'], ['pcs', 'Computadores'], ['charts', 'Gráficos'], ['comunicados', 'Comunicados por e-mail'], ['settings', 'Definições']];
 function gotoCandidates_(q){
   var f = fold(q).trim(), out = [];
   if (!f) return out;
@@ -3738,12 +3743,19 @@ document.getElementById('pres-send').addEventListener('click', function(){
   }).catch(function(){ btn.disabled = false; err.textContent = 'Erro de ligação. Confirma em "As minhas reservas" antes de repetir.'; });
 });
 
-/* ---- histórico pessoal ---- */
+/* ---- histórico pessoal (movimentos + aberturas de sala) ---- */
 var profHist = [];
+var profHistAberturas = [];
+var profHistAberturasOk = false; // false = backend antigo, sem a lista de aberturas
+var profHistView = 'mov';        // 'mov' | 'aberturas'
+
 function loadProfHist_(){
   gsRunQ('api_profHistory', profState.token).then(function(res){
     if (!res.ok){ profExpired_(); return; }
-    profHist = res.movimentos; renderProfHist_();
+    profHist = res.movimentos || [];
+    profHistAberturas = res.aberturas || [];
+    profHistAberturasOk = Object.prototype.toString.call(res.aberturas) === '[object Array]';
+    renderProfHist_();
   }).catch(function(){ toast('Erro de ligação.'); });
 }
 function profHistFiltered_(){
@@ -3757,7 +3769,36 @@ function profHistFiltered_(){
     return true;
   });
 }
+function profAberturasFiltered_(){
+  var q = fold(document.getElementById('phist-search').value).trim();
+  var from = document.getElementById('phist-from').value, to = document.getElementById('phist-to').value;
+  return profHistAberturas.filter(function(a){
+    if (from && (a.inicio || '') < from) return false;
+    if (to && (a.inicio || '') > to + 'T23:59:59') return false;
+    if (q && fold([a.sala, a.motivo, a.fechadoPorNome].join(' ')).indexOf(q) === -1) return false;
+    return true;
+  });
+}
 function renderProfHist_(){
+  var mov = profHistView !== 'aberturas';
+  var movWrap = document.getElementById('phist-mov-wrap');
+  var abWrap = document.getElementById('phist-aberturas-wrap');
+  if (movWrap) movWrap.classList.toggle('hidden', !mov);
+  if (abWrap) abWrap.classList.toggle('hidden', mov);
+  var tipo = document.getElementById('phist-tipo');
+  if (tipo) tipo.disabled = !mov; // o tipo só existe nos movimentos
+  var tipoRow = document.getElementById('phist-tipo-row');
+  if (tipoRow) tipoRow.classList.toggle('hidden', !mov);
+  var pdf = document.getElementById('phist-pdf');
+  if (pdf) pdf.classList.toggle('hidden', !mov);
+  document.querySelectorAll('#ptab-hist [data-hist]').forEach(function(b){
+    var on = (b.getAttribute('data-hist') === 'aberturas') === !mov;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  if (mov) renderProfHistMov_(); else renderProfHistAberturas_();
+}
+function renderProfHistMov_(){
   var rows = profHistFiltered_();
   document.getElementById('phist-summary').textContent = rows.length + ' registo' + (rows.length === 1 ? '' : 's') + (rows.length > 300 ? ' (a mostrar os 300 mais recentes; a exportação leva todos)' : '');
   var tbody = document.querySelector('#phist-table tbody'); tbody.innerHTML = '';
@@ -3777,11 +3818,71 @@ function renderProfHist_(){
     tbody.appendChild(tr);
   });
 }
+function renderProfHistAberturas_(){
+  var rows = profAberturasFiltered_();
+  document.getElementById('phist-summary').textContent = rows.length + ' abertura' + (rows.length === 1 ? '' : 's') + ' de sala' + (rows.length > 300 ? ' (a mostrar as 300 mais recentes; o CSV leva todas)' : '');
+  var tbody = document.querySelector('#phist-aberturas-table tbody'); tbody.innerHTML = '';
+  if (!profHistAberturasOk){
+    var trE = document.createElement('tr'), tdE = document.createElement('td');
+    tdE.colSpan = 6; tdE.className = 'muted';
+    tdE.textContent = 'Ainda não há dados de aberturas nesta versão do servidor. Reimplanta o Code.gs (nova versão do Web App).';
+    trE.appendChild(tdE); tbody.appendChild(trE);
+    document.getElementById('phist-summary').textContent = 'Aberturas indisponíveis';
+    return;
+  }
+  if (!rows.length){
+    var tr0 = document.createElement('tr'), td0 = document.createElement('td');
+    td0.colSpan = 6; td0.className = 'muted';
+    td0.textContent = profHistAberturas.length ? 'Sem aberturas com estes filtros.' : 'Ainda não abriste nenhuma sala.';
+    tr0.appendChild(td0); tbody.appendChild(tr0); return;
+  }
+  rows.slice(0, 300).forEach(function(a){
+    var tr = document.createElement('tr'); tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td>';
+    tr.children[0].textContent = fmtDateTime(a.inicio);
+    tr.children[1].textContent = a.sala || '—';
+    tr.children[2].textContent = a.motivo || '—';
+    tr.children[3].textContent = a.fimPrevisto ? fmtDateTime(a.fimPrevisto) : '—';
+    tr.children[4].textContent = a.fimEfetivo ? fmtDateTime(a.fimEfetivo) : '—';
+    if (a.estado === 'aberta') tr.children[5].innerHTML = '<span class="badge cat">aberta</span>';
+    else {
+      var st = document.createElement('div');
+      st.textContent = a.estado === 'fechada' ? 'fechada' : (a.estado || '—');
+      if (a.fechadoPorNome) {
+        var sub = document.createElement('div');
+        sub.className = 'muted'; sub.style.fontSize = '11px';
+        sub.textContent = 'por ' + a.fechadoPorNome;
+        st.appendChild(sub);
+      }
+      tr.children[5].appendChild(st);
+    }
+    tbody.appendChild(tr);
+  });
+}
+function profAberturasCsv_(){
+  var rows = profAberturasFiltered_();
+  if (!rows.length){ toast('Não há aberturas para exportar.'); return; }
+  var out = [['Início', 'Sala', 'Motivo', 'Fim previsto', 'Fim efetivo', 'Estado', 'Fechada por']];
+  rows.slice().reverse().forEach(function(a){
+    out.push([a.inicio, a.sala, a.motivo, a.fimPrevisto, a.fimEfetivo, a.estado, a.fechadoPorNome]);
+  });
+  var csv = '\uFEFF' + out.map(function(r){ return r.map(function(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
+  var el = document.createElement('a');
+  el.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  el.download = 'minhas-aberturas-sala.csv';
+  document.body.appendChild(el); el.click(); document.body.removeChild(el);
+}
+document.querySelectorAll('#ptab-hist [data-hist]').forEach(function(b){
+  b.addEventListener('click', function(){
+    profHistView = b.getAttribute('data-hist') === 'aberturas' ? 'aberturas' : 'mov';
+    renderProfHist_();
+  });
+});
 ['phist-search', 'phist-from', 'phist-to', 'phist-tipo'].forEach(function(id){
   document.getElementById(id).addEventListener('input', renderProfHist_);
   document.getElementById(id).addEventListener('change', renderProfHist_);
 });
 document.getElementById('phist-csv').addEventListener('click', function(){
+  if (profHistView === 'aberturas'){ profAberturasCsv_(); return; }
   var rows = profHistFiltered_();
   if (!rows.length){ toast('Não há registos para exportar.'); return; }
   var out = [['Data/Hora', 'Valência', 'Item', 'Tipo', 'Quantidade', 'Unidade', 'Estado', 'Devolver até']];
@@ -4851,6 +4952,295 @@ function sendBroadcast_(){
     renderNotifyLog_();
     loadEmailModelos_();
   }).catch(function(){ btn.disabled = false; result.textContent = ''; toast('Erro de ligação.'); });
+}
+
+/* ============================================================
+   COMUNICADOS GERAIS POR E-MAIL
+   Módulo independente dos modelos de PIN. Escreve assunto,
+   introdução e corpo; a assinatura é fixa e vem do servidor.
+   ============================================================ */
+var CM_UI = { info: null, sending: false, bound: false };
+
+function cmEl_(id){ return document.getElementById(id); }
+
+function initComunicados_(){
+  if (!window.__IS_ADMIN__) return;
+  cmBindOnce_();
+  cmLoadInfo_();
+}
+
+function cmBindOnce_(){
+  if (CM_UI.bound) return;
+  var send = cmEl_('cm-send'), prev = cmEl_('cm-preview'), clear = cmEl_('cm-clear');
+  if (!send || !prev || !clear) return;
+  CM_UI.bound = true;
+  prev.addEventListener('click', cmPreview_);
+  send.addEventListener('click', cmSend_);
+  clear.addEventListener('click', cmClear_);
+  document.querySelectorAll('#tab-comunicados [data-cm-fmt]').forEach(function(b){
+    b.addEventListener('click', function(){ cmFormat_(b.getAttribute('data-cm-fmt')); });
+  });
+  ['cm-assunto', 'cm-intro', 'cm-corpo'].forEach(function(id){
+    var el = cmEl_(id);
+    if (el) el.addEventListener('input', cmOnInput_);
+  });
+  var corpo = cmEl_('cm-corpo');
+  if (corpo) corpo.addEventListener('keydown', function(ev){
+    if (!(ev.ctrlKey || ev.metaKey)) return;
+    var k = String(ev.key || '').toLowerCase();
+    if (k === 'b'){ ev.preventDefault(); cmFormat_('bold'); }
+    else if (k === 'i'){ ev.preventDefault(); cmFormat_('italic'); }
+  });
+}
+
+function cmLoadInfo_(){
+  gsRun('api_adminComunicadoInfo', adminState.token).then(function(res){
+    if (!res || !res.ok){
+      cmInfoErro_('Não foi possível contar os destinatários. Usa «Atualizar» para tentar de novo.');
+      return;
+    }
+    CM_UI.info = res;
+    cmRenderInfo_();
+  }).catch(function(){
+    cmInfoErro_('Não foi possível contar os destinatários. Usa «Atualizar» para tentar de novo.');
+  });
+}
+
+function cmInfoErro_(txt){
+  var el = cmEl_('cm-info');
+  if (el) el.innerHTML = '<span class="cm-dot" aria-hidden="true"></span><span>' + esc(txt) + '</span>';
+}
+
+function cmRenderInfo_(){
+  var el = cmEl_('cm-info');
+  if (!el) return;
+  var i = CM_UI.info || {};
+  var n = Number(i.destinatarios) || 0;
+  var txt = n
+    ? 'Este comunicado será enviado a <b>' + n + '</b> utilizador' + (n === 1 ? '' : 'es') + ' do CTE, todos em <b>BCC</b> (cópia oculta).'
+    : '<b>Sem destinatários válidos.</b> Não há utilizadores ativos com email válido na folha Utilizadores — o envio fica bloqueado.';
+  var extra = [];
+  if (i.semEmail) extra.push(i.semEmail + ' utilizador' + (i.semEmail === 1 ? '' : 'es') + ' sem email válido');
+  if (n && i.lotes > 1) extra.push(n + ' destinatários → ' + i.lotes + ' lotes (máx. ' + i.loteMax + ' por mensagem)');
+  if (i.quota != null) extra.push('quota diária restante: ' + i.quota);
+  el.innerHTML = '<span class="cm-dot" aria-hidden="true"></span><span>' + txt +
+    (extra.length ? '<span class="cm-extra">' + esc(extra.join(' · ')) + '</span>' : '') + '</span>';
+  var box = cmEl_('cm-signature-box');
+  // A assinatura mostrada vem do mesmo código que a acrescenta ao e-mail final.
+  if (box && i.assinaturaHtml) box.innerHTML = i.assinaturaHtml;
+}
+
+function cmValues_(){
+  var a = cmEl_('cm-assunto'), i = cmEl_('cm-intro'), c = cmEl_('cm-corpo');
+  return {
+    assunto: a ? String(a.value || '').trim() : '',
+    intro: i ? String(i.value || '').trim() : '',
+    corpo: c ? String(c.value || '').trim() : ''
+  };
+}
+
+function cmValidate_(v){
+  if (!v.assunto) return 'Escreve o assunto do comunicado.';
+  if (v.assunto.length > 150) return 'O assunto não pode ter mais de 150 caracteres.';
+  if (!v.intro) return 'Escreve a introdução do comunicado.';
+  if (v.intro.length > 1000) return 'A introdução não pode ter mais de 1000 caracteres.';
+  if (!v.corpo) return 'Escreve o corpo do comunicado.';
+  if (v.corpo.length > 20000) return 'O corpo não pode ter mais de 20 000 caracteres.';
+  return '';
+}
+
+function cmOnInput_(){
+  var err = cmEl_('cm-error');
+  if (err) err.textContent = '';
+}
+
+function cmPreview_(){
+  if (CM_UI.sending) return;
+  var err = cmEl_('cm-error');
+  var v = cmValues_();
+  var problema = cmValidate_(v);
+  if (err) err.textContent = '';
+  if (problema){ if (err) err.textContent = problema; return; }
+  var btn = cmEl_('cm-preview');
+  if (btn) btn.disabled = true;
+  gsRun('api_adminPreviewComunicado', adminState.token, v.assunto, v.intro, v.corpo).then(function(res){
+    if (btn) btn.disabled = false;
+    if (!res || !res.ok){
+      if (err) err.textContent = cmErroTexto_(res && res.error);
+      return;
+    }
+    openEmailPreviewModal_(res.assunto, res.html, 'Pré-visualização do e-mail tal como será enviado. A assinatura é acrescentada automaticamente.');
+  }).catch(function(e){
+    if (btn) btn.disabled = false;
+    if (err) err.textContent = (e && e.message === 'resposta_invalida')
+      ? 'O servidor devolveu uma resposta inesperada. Tenta outra vez.'
+      : 'Não foi possível pré-visualizar. Verifica a ligação.';
+  });
+}
+
+function cmSend_(){
+  if (CM_UI.sending) return;
+  var err = cmEl_('cm-error'), box = cmEl_('cm-result');
+  var v = cmValues_();
+  var problema = cmValidate_(v);
+  if (err) err.textContent = '';
+  if (box){ box.className = 'cm-result hidden'; box.innerHTML = ''; }
+  if (problema){ if (err) err.textContent = problema; return; }
+
+  var btn = cmEl_('cm-send');
+  if (btn){ btn.disabled = true; btn.textContent = 'A confirmar…'; }
+  // Contagem atualizada no servidor imediatamente antes do envio.
+  gsRun('api_adminComunicadoInfo', adminState.token).then(function(info){
+    if (btn){ btn.disabled = false; btn.textContent = 'Enviar comunicado'; }
+    if (!info || !info.ok){
+      if (err) err.textContent = cmErroTexto_(info && info.error);
+      return;
+    }
+    CM_UI.info = info;
+    cmRenderInfo_();
+    var n = Number(info.destinatarios) || 0;
+    if (!n){
+      if (err) err.textContent = 'Não há destinatários válidos. O envio foi cancelado.';
+      return;
+    }
+    var aviso = 'Enviar este comunicado a ' + n + ' utilizador' + (n === 1 ? '' : 'es') + ' do CTE?\n\n' +
+      'Assunto: ' + v.assunto + '\n\n' +
+      'Todos os destinatários vão em BCC (cópia oculta): nenhum vê o email dos outros.\n' +
+      'O envio não pode ser desfeito.';
+    if (!window.confirm(aviso)) return;
+    cmEnviarAgora_(v);
+  }).catch(function(){
+    if (btn){ btn.disabled = false; btn.textContent = 'Enviar comunicado'; }
+    if (err) err.textContent = 'Não foi possível confirmar os destinatários. Verifica a ligação e tenta outra vez.';
+  });
+}
+
+function cmEnviarAgora_(v){
+  var err = cmEl_('cm-error'), box = cmEl_('cm-result');
+  var btn = cmEl_('cm-send'), prev = cmEl_('cm-preview'), clear = cmEl_('cm-clear');
+  CM_UI.sending = true;
+  if (btn){ btn.disabled = true; btn.textContent = 'A enviar…'; }
+  if (prev) prev.disabled = true;
+  if (clear) clear.disabled = true;
+  if (box){
+    box.className = 'cm-result';
+    box.innerHTML = '<p style="margin:0">A enviar o comunicado… Pode demorar alguns segundos.</p>';
+  }
+  gsRun('api_adminSendComunicado', adminState.token, v.assunto, v.intro, v.corpo, newClientId_()).then(function(res){
+    cmFimEnvio_();
+    if (!res || !res.ok){
+      if (box){ box.className = 'cm-result hidden'; box.innerHTML = ''; }
+      if (err) err.textContent = cmErroTexto_(res && res.error);
+      return;
+    }
+    cmRenderResultado_(res);
+    cmLoadInfo_();
+    renderNotifyLog_();
+    toast(res.duplicado ? 'Este envio já tinha sido processado.' : (res.enviados ? 'Pedido de envio aceite.' : 'O envio não foi aceite.'));
+  }).catch(function(e){
+    cmFimEnvio_();
+    if (box){ box.className = 'cm-result hidden'; box.innerHTML = ''; }
+    if (!err) return;
+    err.textContent = (e && e.message === 'resposta_invalida')
+      ? 'Resposta inesperada do servidor. Confirma na folha «Avisos» se o envio foi processado antes de tentar outra vez.'
+      : 'Não foi possível concluir o envio. Confirma na folha «Avisos» se o envio foi processado antes de tentar outra vez.';
+  });
+}
+
+function cmFimEnvio_(){
+  CM_UI.sending = false;
+  var btn = cmEl_('cm-send'), prev = cmEl_('cm-preview'), clear = cmEl_('cm-clear');
+  if (btn){ btn.disabled = false; btn.textContent = 'Enviar comunicado'; }
+  if (prev) prev.disabled = false;
+  if (clear) clear.disabled = false;
+}
+
+function cmRenderResultado_(res){
+  var box = cmEl_('cm-result');
+  if (!box) return;
+  var estado = res.estado || 'aceite';
+  var cls = estado === 'aceite' ? 'ok' : (estado === 'falhou' ? 'err' : 'warn');
+  var titulo = estado === 'aceite'
+    ? 'Pedido de envio aceite'
+    : (estado === 'parcial' ? 'Envio parcial' : 'Envio não aceite');
+  var linhas = [];
+  linhas.push('Estado: ' + (estado === 'aceite' ? 'pedido aceite pelo serviço de email' : estado === 'parcial' ? 'parcial — alguns destinatários podem não ter recebido' : 'nenhum lote foi aceite'));
+  linhas.push('Destinatários previstos: ' + res.previstos + '.');
+  linhas.push('Lotes aceites: ' + (res.lotesOk || 0) + ' de ' + (res.lotes || 0) + '.');
+  linhas.push('Destinatários incluídos em pedidos aceites: ' + res.enviados + '.');
+  if (res.falhados) linhas.push('Falhas: ' + res.falhados + ' destinatário(s) em ' + res.lotesFalhados + ' lote(s).');
+  if (res.interrompidos) linhas.push('Não processados (quota ou tempo): ' + res.interrompidos + '.');
+  if (res.semEmail) linhas.push('Utilizadores ativos sem email válido: ' + res.semEmail + '.');
+  if (res.duplicado) linhas.push('Este pedido já tinha sido processado — não foi enviado outra vez.');
+  if (res.quota != null) linhas.push('Quota diária restante: ' + res.quota + '.');
+
+  box.className = 'cm-result ' + cls;
+  box.innerHTML =
+    '<p><b>' + esc(titulo) + '</b></p>' +
+    '<ul>' + linhas.map(function(l){ return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' +
+    '<p class="cm-note">Aceite não significa entregue: o serviço confirma que aceitou o pedido de envio, não a entrega na caixa de cada destinatário.</p>' +
+    ((estado === 'parcial' || res.falhados) ? '<p class="cm-note">Para não duplicar envios, não repitas o comunicado completo. Confirma na folha «Avisos» e com os destinatários antes de reenviar.</p>' : '');
+}
+
+function cmClear_(){
+  if (CM_UI.sending) return;
+  var v = cmValues_();
+  var tem = v.assunto || v.intro || v.corpo;
+  if (tem && !window.confirm('Limpar o comunicado?\n\nO texto escrito é descartado. Nenhum email é enviado e os dados guardados noutros locais não são alterados.')) return;
+  ['cm-assunto', 'cm-intro', 'cm-corpo'].forEach(function(id){
+    var el = cmEl_(id);
+    if (el) el.value = '';
+  });
+  var err = cmEl_('cm-error');
+  if (err) err.textContent = '';
+  var box = cmEl_('cm-result');
+  if (box){ box.className = 'cm-result hidden'; box.innerHTML = ''; }
+  var a = cmEl_('cm-assunto');
+  if (a && a.focus) a.focus();
+}
+
+// Formatação simples e segura: insere marcadores no texto (o servidor escapa tudo).
+function cmFormat_(kind){
+  var ta = cmEl_('cm-corpo');
+  if (!ta) return;
+  var ini = ta.selectionStart || 0, fim = ta.selectionEnd || 0, val = String(ta.value || '');
+  var sel = val.slice(ini, fim);
+  var antes = '', depois = '', texto = sel;
+  if (kind === 'bold'){ antes = '**'; depois = '**'; if (!sel) texto = 'texto a negrito'; }
+  else if (kind === 'italic'){ antes = '_'; depois = '_'; if (!sel) texto = 'texto em itálico'; }
+  else if (kind === 'ul'){
+    texto = (sel || 'primeiro ponto').split('\n').map(function(l){ return '- ' + l.replace(/^\s*-\s+/, ''); }).join('\n');
+    antes = (ini === 0 || val.charAt(ini - 1) === '\n') ? '' : '\n';
+    depois = (fim >= val.length || val.charAt(fim) === '\n') ? '' : '\n';
+  } else if (kind === 'link'){
+    texto = '[' + (sel || 'texto da ligação') + '](https://)';
+  } else return;
+  ta.value = val.slice(0, ini) + antes + texto + depois + val.slice(fim);
+  var pos = ini + antes.length + texto.length;
+  if (ta.focus) ta.focus();
+  if (ta.setSelectionRange){
+    if (kind === 'link'){
+      var inicioUrl = ini + antes.length + 1 + (sel || 'texto da ligação').length + 3;
+      ta.setSelectionRange(inicioUrl, inicioUrl + 8);
+    } else {
+      ta.setSelectionRange(pos, pos);
+    }
+  }
+  cmOnInput_();
+}
+
+function cmErroTexto_(codigo){
+  var m = {
+    sessao_invalida: 'A sessão de administração expirou. Volta a entrar no painel.',
+    assunto_invalido: 'O assunto é obrigatório e não pode ter mais de 150 caracteres.',
+    intro_invalida: 'A introdução é obrigatória e não pode ter mais de 1000 caracteres.',
+    corpo_invalido: 'O corpo é obrigatório e não pode ter mais de 20 000 caracteres.',
+    sem_destinatarios: 'Não há utilizadores ativos com email válido. O envio foi cancelado.',
+    quota_esgotada: 'A quota diária de email do serviço está esgotada. Tenta novamente amanhã.',
+    ocupado: 'O sistema está ocupado com outro envio. Tenta novamente dentro de instantes.',
+    demasiados_destinatarios: 'Há demasiados destinatários para um único comunicado.'
+  };
+  return m[codigo] || 'Não foi possível concluir a operação.';
 }
 
 })();
