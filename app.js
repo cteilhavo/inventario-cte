@@ -810,6 +810,7 @@ function loadEmailModelos_() {
         '</div></div>';
     });
     el.innerHTML = html;
+    bindEmailModelosEvents_(el);
   }).catch(function(){ toast('Erro ao carregar modelos.'); });
 }
 
@@ -830,7 +831,8 @@ function modeloBtn_(act, tipo, id, duplicado){
     editar: 'Editar', duplicar: 'Duplicar', eliminar: 'Eliminar', preview: 'Pré-visualizar', selectar: 'Usar padrão'
   }[act] + '</button>';
 }
-document.getElementById('email-modelos').addEventListener('click', function(e){
+function bindEmailModelosEvents_(el){
+  el.addEventListener('click', function(e){
   var b = e.target.closest('button[data-act]');
   if (!b) return;
   var act = b.dataset.act;
@@ -850,6 +852,9 @@ document.getElementById('email-modelos').addEventListener('click', function(e){
     openEmailModeloEditor_(b.dataset.tipo, b.dataset.id || '', b.dataset.duplicado === '1');
   }
 });
+}
+
+document.querySelectorAll('#admin-root .tab-btn').forEach(function(btn){
   btn.addEventListener('click', function(){
     document.querySelectorAll('#admin-root .tab-btn').forEach(function(b){ b.classList.toggle('active', b===btn); });
     document.querySelectorAll('#admin-root .panel').forEach(function(p){ p.classList.toggle('active', p.id === 'tab-' + btn.dataset.tab); });
