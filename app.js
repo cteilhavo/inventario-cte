@@ -1,3 +1,4 @@
+
 (function(){
 
 /* ---- parâmetros do URL (substituem a injeção do HtmlService) ---- */
@@ -764,9 +765,92 @@ function enterDashboard(){
   refreshDashboard();
   loadNotifySettings_();
   renderNotifyLog_();
+  initEmailModelos_();
 }
 
-document.querySelectorAll('#admin-root .tab-btn').forEach(function(btn){
+/* ==================== MODELOS DE EMAIL DO PIN (admin) ==================== */
+
+var EMAIL_MODELO_STATE = { tipo: 'aluno', id: '' };
+var EMAIL_MODELO_EDITOR_OPEN = false;
+
+function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function emailModeloCell_(m){ return esc(m.nome.length > 24 ? m.nome.slice(0,24)+'…' : m.nome); }
+function emailModeloBodyPre_(corpo){
+  var b = esc(String(corpo || '').replace(/\r/g,'')).split('\n');
+  return b.map(function(l){ return l.length > 30 ? l.slice(0,30)+'…' : l; }).join(' | ');
+}
+
+function initEmailModelos_() {
+  if (!window.__IS_ADMIN__) return;
+  loadEmailModelos_();
+}
+
+function loadEmailModelos_() {
+  gsRun('api_adminGetEmailModelos', adminState.token).then(function(res){
+    if (!res.ok) return;
+    var el = document.getElementById('email-modelos');
+    var html = '<p class="muted" style="margin-top:0">Escolhe o modelo que vai ser enviado a cada tipo. O <em>Padrão</em> usa o email original do aplicativo.</p>' +
+      '<div class="grid2" style="margin-bottom:10px">' +
+      tipoCard_('aluno', res.padroes.aluno) + tipoCard_('professor', res.padroes.professor) +
+      '</div>';
+    res.modelos.forEach(function(m){
+      var sel = m.tipo === 'professor' ? res.selProfessor : res.selAluno;
+      var ativo = (m.id === sel);
+      html += '<div class="card" style="padding:12px 14px">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">' +
+        '<strong>' + esc(m.nome) + '</strong>' +
+        '<span class="tag" style="font-size:11px">' + (ativo ? '<b>Em uso</b>' : 'selecionado') + '</span>' +
+        '</div>' +
+        '<div class="muted" style="font-size:12px;margin-top:4px;word-break:break-all">' + emailModeloBodyPre_(m.corpo) + '</div>' +
+        '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">' +
+        modeloBtn_('editar', m.tipo, m.id, false) +
+        modeloBtn_('duplicar', m.tipo, m.id, true) +
+        modeloBtn_('eliminar', m.tipo, m.id, false) +
+        modeloBtn_('preview', m.tipo, m.id, false) +
+        modeloBtn_('selecionar', m.tipo, 'padrao', false) +
+        '</div></div>';
+    });
+    el.innerHTML = html;
+  }).catch(function(){ toast('Erro ao carregar modelos.'); });
+}
+
+function tipoCard_(tipo, padrao) {
+  var typeLabel = tipo === 'professor' ? 'Professores' : 'Alunos';
+  var bodyPreview = padrao ? emailModeloBodyPre_(padrao.corpo) : '';
+  return '<div class="card" style="padding:12px 14px;flex:1;min-width:220px">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between"><strong>' + typeLabel + '</strong>' +
+    '<span class="tag" style="font-size:11px">padrão</span></div>' +
+    '<p class="muted" style="font-size:12px;margin:6px 0 0 0;word-break:break-all">' + bodyPreview + '</p>' +
+    '<div style="margin-top:8px"><button class="btn secondary small" data-act="select" data-tipo="' + tipo + '">Usar este como padrão</button></div>' +
+    '</div>';
+}
+
+function modeloBtn_(act, tipo, id, duplicado){
+  var target = (act === 'eliminar') ? 'email-modelo-editor-danger' : 'email-modelo-editor';
+  return '<button class="btn small" data-act="' + act + '" data-target="' + target + '" data-tipo="' + tipo + '" data-id="' + id + '" data-duplicado="' + (!!duplicado ? 1 : 0) + '" type="button">' + (act === 'eliminar' ? '🗑️' : act === 'preview' ? '👁️' : act === 'selectar' ? '↺' : '🎛️') + ' ' + {
+    editar: 'Editar', duplicar: 'Duplicar', eliminar: 'Eliminar', preview: 'Pré-visualizar', selectar: 'Usar padrão'
+  }[act] + '</button>';
+}
+document.getElementById('email-modelos').addEventListener('click', function(e){
+  var b = e.target.closest('button[data-act]');
+  if (!b) return;
+  var act = b.dataset.act;
+  if (act === 'select' || act === 'selecionar'){ selectEmailModelo_(b.dataset.tipo, 'padrao'); return; }
+  var target = b.dataset.target;
+  var editor = document.getElementById('email-modelo-editor');
+  editor.classList.remove('hidden');
+  editor.style.borderTop = 'none';
+  editor.innerHTML = '';
+  if (target === 'email-modelo-editor-danger'){
+    editor.innerHTML = '<p class="muted" style="margin:0 0 10px 0">Eliminar este modelo? O modelo que estiver seleccionado para o tipo correspondente volta ao <em>Padrão</em>.</p><div style="display:flex;gap:8px"><button class="btn danger" id="eml-confirm-del" type="button">Eliminar</button><button class="btn secondary" id="eml-cancel-del" type="button">Cancelar</button></div>';
+    editor.querySelector('#eml-confirm-del').addEventListener('click', function(){ delEmailModelo_(b.dataset.id, b.dataset.tipo); });
+    editor.querySelector('#eml-cancel-del').addEventListener('click', closeEditor_);
+    return;
+  }
+  if (target === 'email-modelo-editor'){
+    openEmailModeloEditor_(b.dataset.tipo, b.dataset.id || '', b.dataset.duplicado === '1');
+  }
+});
   btn.addEventListener('click', function(){
     document.querySelectorAll('#admin-root .tab-btn').forEach(function(b){ b.classList.toggle('active', b===btn); });
     document.querySelectorAll('#admin-root .panel').forEach(function(p){ p.classList.toggle('active', p.id === 'tab-' + btn.dataset.tab); });
@@ -4184,6 +4268,131 @@ if (window.__IS_ADMIN__){
   salaBoot_();
 } else {
   bootKiosk();
+}
+
+
+function openEmailModeloEditor_(tipo, id, duplicado){
+  EMAIL_MODELO_STATE.tipo = tipo;
+  EMAIL_MODELO_STATE.id = id || '';
+  EMAIL_MODELO_STATE.isNew = !!duplicado;
+  var el = document.getElementById('email-modelo-editor');
+  el.classList.remove('hidden');
+  el.style.borderTop = 'none';
+  el.innerHTML = '';
+  gsRun('api_adminGetEmailModelos', adminState.token).then(function(res){
+    if (!res.ok) return;
+    if (EMAIL_MODELO_STATE.isNew) {
+      openEditorForm_(tipo, null, null, res.padroes);
+      return;
+    }
+    if (id === 'padrao') {
+      openEditorForm_(tipo + ' (padrão)', res.padroes[tipo].assunto, res.padroes[tipo].corpo, res.padroes);
+      return;
+    }
+    var m = res.modelos.find(function(x){ return x.tipo === tipo && x.id === id; });
+    if (!m) return toast('Modelo não encontrado.');
+    openEditorForm_(m.nome, m.assunto, m.corpo, res.padroes);
+  }).catch(function(){ toast('Erro de ligação.'); });
+}
+function openEditorForm_(nome, assunto, corpo, padroes){
+  var el = document.getElementById('email-modelo-editor');
+  el.innerHTML = '<div class="card" style="padding:14px">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">' +
+    '<strong style="font-size:16px">' + esc(nome || 'Novo modelo') + '</strong>' +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+    '<button class="btn secondary small" id="eml-cancel" type="button">Cancelar</button>' +
+    '</div></div>' +
+    '<div class="space-between" style="gap:10px;flex-wrap:wrap;margin-top:10px">' +
+    '<div style="flex:1;min-width:240px"><label>Nome do modelo</label><input class="w-full" id="eml-nome" placeholder="ex.: Manto de natal"/></div>' +
+    '<div style="flex:1;min-width:240px"><label>Assunto</label><input class="w-full" id="eml-assunto" placeholder="ex.: 🔑 O teu acesso ao Inventário CTE"/></div>' +
+    '<div style="flex:1;min-width:240px"><label>Corpo (texto simples; <code>- </code> = lista, <code>1. </code> = numerada, <code>**negrito**</code>)</label><textarea id="eml-corpo" class="w-full" rows="14" placeholder="Olá, {{nome}}!&#10;&#10;Foi criado o teu acesso de {{perfil}} ao Inventário CTE.&#10;&#10;O teu PIN pessoal é:&#10;{{pin}}&#10;&#10;O PIN é pessoal — não o partilhes com ninguém.">' + esc(corpo || '') + '</textarea></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">' +
+    '<button class="btn" id="eml-salvar" type="button">💾 Guardar modelo</button>' +
+    '<button class="btn secondary" id="eml-proximo" type="button">Próximo</button>' +
+    '<button class="btn secondary" id="eml-voltar" type="button">Cancelar</button>' +
+    '</div>' +
+    '<p class="muted" style="font-size:12px;margin-top:10px">Variáveis: <code>{{nome}}</code>, <code>{{pin}}</code>, <code>{{link}}</code>, <code>{{perfil}}</code>. O PIN é sempre substituído pelo valor do registo de cada utilizador.</p>' +
+    '</div>';
+  document.getElementById('eml-nome').value = nome || '';
+  document.getElementById('eml-nome').value = nome || '';
+  document.getElementById('eml-assunto').value = assunto || '';
+  document.getElementById('eml-corpo').value = corpo || '';
+  if (padroes) {
+    document.getElementById('eml-nome').placeholder = (nome || 'Novo modelo') + ' — baseia-te no padrão';
+  }
+  document.getElementById('eml-salvar').addEventListener('click', feedEditorAndSave_);
+  document.getElementById('eml-proximo').addEventListener('click', feedEditorAndSave_);
+  document.getElementById('eml-voltar').addEventListener('click', closeEditor_);
+  document.getElementById('eml-cancel').addEventListener('click', closeEditor_);
+  document.getElementById('eml-nome').focus();
+}
+function feedEditor_(){
+  EMAIL_MODELO_STATE.val = {
+    nome: document.getElementById('eml-nome').value.trim(),
+    assunto: document.getElementById('eml-assunto').value.trim(),
+    corpo: document.getElementById('eml-corpo').value
+  };
+}
+function feedEditorAndSave_(){
+  feedEditor_();
+  saveEmailModelo_();
+}
+function saveEmailModelo_(){
+  var btn = document.getElementById('eml-salvar');
+  if (!btn) return;
+  btn.disabled = true;
+  gsRun('api_adminSaveEmailModelo', adminState.token, EMAIL_MODELO_STATE.val).then(function(res){
+    btn.disabled = false;
+    if (!res.ok){
+      toast('Erro: ' + (res.error || 'desconhecido'));
+      if (res.error === 'sem_pin') toast('O corpo do modelo deve conter {{pin}}.');
+      return;
+    }
+    closeEditor_();
+    loadEmailModelos_();
+    toast('Modelo guardado.');
+  }).catch(function(){ toast('Erro de ligação.'); });
+}
+function delEmailModelo_(id, tipo){
+  if (!confirm('Eliminar este modelo? O modelo seleccionado para o tipo ' + tipo + ' volta ao padrão.')) return;
+  gsRun('api_adminDeleteEmailModelo', adminState.token, id).then(function(res){
+    if (!res.ok){ toast('Erro: ' + (res.error || '')); return; }
+    closeEditor_();
+    loadEmailModelos_();
+    toast('Modelo eliminado.');
+  }).catch(function(){ toast('Erro de ligação.'); });
+}
+function selectEmailModelo_(tipo, id){
+  gsRun('api_adminSelectEmailModelo', adminState.token, tipo, id).then(function(res){
+    if (!res.ok){ toast('Erro: ' + (res.error || '')); return; }
+    loadEmailModelos_();
+    toast('Modelo seleccionado.');
+  }).catch(function(){ toast('Erro de ligação.'); });
+}
+function previewEmailModelo_(tipo, id){
+  var modelo = EMAIL_MODELO_STATE.val;
+  if (!modelo || !modelo.nome) return;
+  gsRun('api_adminPreviewEmailModelo', adminState.token, modelo).then(function(res){
+    if (!res.ok){ toast('Erro: ' + (res.error || '')); return; }
+    var win = window.open('', '_blank');
+    if (!win){ toast('Abra o email no seu navegador para ver a pré-visualização.'); return; }
+    win.document.write('<!doctype html><html><head><meta charset="utf-8"><style>' +
+      'body{font:15px system-ui,Arial,sans-serif;color:#1a1a1a;line-height:1.55;padding:18px}' +
+      'p{margin:0 0 14px 0} b{color:#1F3A93} code{background:#F4F4F1;padding:1px 4px}' +
+      '</style></head><body>' + res.html + '<p><b>Assunto:</b> ' + res.assunto + '</p>' +
+      (res.semPin ? '<p class="muted" style="color:#b00"><b>Atenção:</b> o corpo do modelo não contém {{pin}} — o email nunca enviará o PIN.</p>' : '') +
+      '</body></html>');
+    win.document.close();
+  }).catch(function(){ toast('Erro de ligação.'); });
+}
+function closeEditor_(){
+  var el = document.getElementById('email-modelo-editor');
+  el.classList.add('hidden');
+  el.innerHTML = '';
+}
+function dangerPane_(){
+  return '<p class="muted" style="margin:0 0 10px 0">Eliminar este modelo não pode ser desfeito. O modelo que estiver seleccionado para o tipo correspondente volta ao <em>Padrão</em>.</p>';
 }
 
 })();
