@@ -8,7 +8,7 @@
  * Ao publicar uma alteração aos ficheiros em site/, subir CACHE_VERSAO (ex.: v1 -> v2).
  * Sem isso, o browser pode continuar a servir a versão anterior da cache.
  */
-const CACHE_VERSAO = 'cte-inventario-v1';
+const CACHE_VERSAO = 'cte-inventario-v2';
 const CACHE = CACHE_VERSAO;
 const PRECACHE = [
   './',
@@ -19,7 +19,10 @@ const PRECACHE = [
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png',
-  './apple-touch-icon.png'
+  './apple-touch-icon.png',
+  './favicon.ico',
+  './favicon-32.png',
+  './favicon-16.png'
 ];
 const TEMPO_REDE_MS = 3500;
 

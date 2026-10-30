@@ -13,7 +13,8 @@ Fala com o Apps Script por `POST` (`{ metodo, args }` → `{ ok, dados }`).
 | `config.js` | **o único sítio a editar**: o endereço da aplicação |
 | `manifest.webmanifest` | manifesto PWA (nome, ícones, cores) |
 | `sw.js` | service worker: guarda o “casco” da aplicação para abrir com Wi‑Fi fraco; não interceta o POST para o Apps Script |
-| `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | ícones da PWA |
+| `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | ícones da PWA (instalação/atalho) |
+| `favicon.ico`, `favicon-32.png`, `favicon-16.png` | ícone da aba do browser |
 
 ## Publicar (GitHub Pages)
 
