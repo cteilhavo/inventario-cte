@@ -1370,10 +1370,12 @@ function closeEmailPreviewModal_(){
 document.querySelectorAll('#admin-root .tab-btn').forEach(function(btn){
   btn.addEventListener('click', function(){
     document.querySelectorAll('#admin-root .tab-btn').forEach(function(b){ b.classList.toggle('active', b===btn); });
-    document.querySelectorAll('#admin-root .panel').forEach(function(p){ p.classList.toggle('active', p.id === 'tab-' + btn.dataset.tab); });
+    var panel = document.getElementById('tab-' + btn.dataset.tab);
+    document.querySelectorAll('#admin-root .panel').forEach(function(p){ p.classList.toggle('active', p === panel); });
     var title = document.getElementById('page-title'); if (title) title.textContent = btn.dataset.label || btn.textContent.trim();
     if (btn.scrollIntoView) btn.scrollIntoView({ block: 'nearest', inline: 'center' });
     if (window.scrollTo) window.scrollTo(0, 0);
+    renderSubmenu_('admin', panel);
     if (_dirty && _dirty[btn.dataset.tab]) renderTab_(btn.dataset.tab);
   });
 });
@@ -1534,7 +1536,7 @@ function renderCabsTab(data){
     var acts = document.createElement('div'); acts.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
     function sbtn(txt, cls, fn){ var b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + cls; b.textContent = txt; b.style.cssText = 'margin:0;padding:6px 12px;font-size:12px'; b.addEventListener('click', fn); acts.appendChild(b); }
     sbtn('🪑 Mobiliário', 'secondary', function(){
-      goTab_('mob'); renderMobTab_();
+      goTab_('mob', 'lista'); renderMobTab_();
       var fs = document.getElementById('mob-filter-sala'); fs.value = s.id; renderMobTab_();
     });
     sbtn('✎ Renomear', 'secondary', function(){
@@ -2755,14 +2757,114 @@ function initNav_(){
   var saved = null;
   try{ saved = localStorage.getItem(NAV_KEY); } catch(e){}
   setNavCollapsed_(saved ? saved === 'collapsed' : window.innerWidth < 1100, false);
+  renderSubmenu_('admin', document.querySelector('#admin-root .panel.active'));
 }
 document.getElementById('nav-collapse').addEventListener('click', function(){
   setNavCollapsed_(!document.getElementById('scr-admin-dash').classList.contains('collapsed'), true);
 });
 
-function goTab_(name){
+/* ============================================================
+   SUBMENUS DE PÁGINA
+   Cada cartão de um menu com vários cartões passa a ser um
+   submenu. A barra é construída a partir dos [data-sub] do
+   painel ativo; só a secção escolhida fica visível.
+   ============================================================ */
+var SUB_STATE = { admin: {}, prof: {} };
+/* Ao abrir a página, mostra a lista/visão geral em vez do formulário de criação. */
+var SUB_DEFAULT = { 'tab-cabs': 'valencias', 'tab-users': 'lista', 'tab-mob': 'lista', 'tab-pcs': 'lista' };
+
+function subSections_(panel){
+  return panel ? Array.prototype.filter.call(panel.children, function(el){
+    return !!(el && el.getAttribute && el.getAttribute('data-sub'));
+  }) : [];
+}
+function subIds_(panel){
+  var ids = [], seen = {};
+  subSections_(panel).forEach(function(el){
+    var id = el.getAttribute('data-sub');
+    if (id && !seen[id]){ seen[id] = true; ids.push(id); }
+  });
+  return ids;
+}
+function subLabel_(panel, id){
+  var label = '';
+  subSections_(panel).forEach(function(el){
+    if (!label && el.getAttribute('data-sub') === id) label = el.getAttribute('data-sub-label') || '';
+  });
+  return label || id;
+}
+function subBar_(scope){
+  return document.getElementById(scope === 'prof' ? 'prof-submenu' : 'admin-submenu');
+}
+function showSub_(scope, panel, id){
+  if (!panel) return;
+  var ids = subIds_(panel);
+  if (ids.length < 2) return;
+  if (ids.indexOf(id) === -1) id = ids[0];
+  subSections_(panel).forEach(function(el){
+    el.classList.toggle('sub-hidden', el.getAttribute('data-sub') !== id);
+  });
+  panel.setAttribute('data-sub-active', id);
+  SUB_STATE[scope][panel.id] = id;
+  var bar = subBar_(scope);
+  if (bar){
+    var activeBtn = null;
+    Array.prototype.forEach.call(bar.querySelectorAll('.submenu-btn'), function(b){
+      var on = b.getAttribute('data-sub') === id;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      b.tabIndex = on ? 0 : -1;
+      if (on) activeBtn = b;
+    });
+    if (activeBtn){
+      var br = bar.getBoundingClientRect(), ar = activeBtn.getBoundingClientRect();
+      if (ar.left < br.left || ar.right > br.right){
+        bar.scrollLeft += (ar.left - br.left) - (br.width - ar.width) / 2;
+      }
+    }
+  }
+}
+function renderSubmenu_(scope, panel){
+  var bar = subBar_(scope);
+  if (!bar) return;
+  bar.innerHTML = '';
+  var ids = subIds_(panel);
+  if (ids.length < 2){
+    bar.classList.add('hidden');
+    return;
+  }
+  bar.classList.remove('hidden');
+  var active = SUB_STATE[scope][panel.id];
+  if (!active || ids.indexOf(active) === -1) active = panel.getAttribute('data-sub-active');
+  if (!active || ids.indexOf(active) === -1) active = SUB_DEFAULT[panel.id];
+  if (!active || ids.indexOf(active) === -1) active = ids[0];
+  ids.forEach(function(id){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'submenu-btn';
+    b.setAttribute('data-sub', id);
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', 'false');
+    b.textContent = subLabel_(panel, id);
+    b.addEventListener('click', function(){ showSub_(scope, panel, id); });
+    b.addEventListener('keydown', function(e){
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      e.preventDefault();
+      var all = Array.prototype.slice.call(bar.querySelectorAll('.submenu-btn'));
+      var i = all.indexOf(b);
+      var next = all[(i + (e.key === 'ArrowRight' ? 1 : all.length - 1)) % all.length];
+      if (next){ next.focus(); next.click(); }
+    });
+    bar.appendChild(b);
+  });
+  showSub_(scope, panel, active);
+}
+
+function goTab_(name, sub){
   var b = document.querySelector('#admin-root .tab-btn[data-tab="' + name + '"]');
-  if (b) b.click();
+  if (!b) return;
+  b.click();
+  if (sub) showSub_('admin', document.getElementById('tab-' + name), sub);
 }
 function setCnt_(id, n){
   var el = document.getElementById(id);
@@ -2819,7 +2921,12 @@ function renderHomeTab(){
 }
 document.querySelectorAll('.home-tile').forEach(function(t){
   t.addEventListener('click', function(){
-    goTab_(t.dataset.go);
+    var sub = t.dataset.sub || '';
+    if (t.dataset.scroll){
+      var target = document.getElementById(t.dataset.scroll);
+      if (target && target.getAttribute('data-sub')) sub = target.getAttribute('data-sub');
+    }
+    goTab_(t.dataset.go, sub);
     if (t.dataset.go === 'stock'){
       document.getElementById('stock-filter-low').checked = !!t.dataset.low;
       renderStockTab();
@@ -2832,27 +2939,54 @@ document.querySelectorAll('.home-tile').forEach(function(t){
 });
 
 /* ---- "Ir para…" ---- */
-var GOTO_PAGES = [['home', 'Início'], ['stock', 'Stock atual'], ['req', 'Pedidos'], ['dmg', 'Danificados'], ['fb', 'Feedback'], ['rsv', 'Reservas'], ['hist', 'Histórico'], ['users', 'Utilizadores'], ['cabs', 'Valências & itens'], ['mob', 'Mobiliário'], ['pcs', 'Computadores'], ['charts', 'Gráficos'], ['comunicados', 'Comunicados por e-mail'], ['settings', 'Definições']];
+var GOTO_PAGES = [
+  ['home', 'Início'],
+  ['stock', 'Stock atual'],
+  ['stock', 'Stock atual · Por devolver', 'devolver'],
+  ['req', 'Pedidos'],
+  ['dmg', 'Danificados'],
+  ['fb', 'Feedback'],
+  ['rsv', 'Reservas'],
+  ['hist', 'Histórico'],
+  ['users', 'Utilizadores'],
+  ['users', 'Utilizadores · Lista', 'lista'],
+  ['cabs', 'Valências & itens'],
+  ['cabs', 'Valências & itens · Nova sala', 'salas'],
+  ['mob', 'Mobiliário'],
+  ['mob', 'Mobiliário · Lista', 'lista'],
+  ['pcs', 'Computadores'],
+  ['pcs', 'Computadores · Criar', 'criar'],
+  ['pcs', 'Computadores · Utilização', 'utilizacao'],
+  ['pcs', 'Computadores · Aberturas de sala', 'aberturas'],
+  ['pcs', 'Computadores · QR da mesa', 'qr'],
+  ['charts', 'Gráficos'],
+  ['comunicados', 'Comunicados por e-mail'],
+  ['settings', 'Definições'],
+  ['settings', 'Definições · Avisos por email', 'avisos'],
+  ['settings', 'Definições · Modelos do PIN', 'modelos'],
+  ['settings', 'Definições · Resumo semanal', 'resumo'],
+  ['settings', 'Definições · Cópias de segurança', 'copias']
+];
 function gotoCandidates_(q){
   var f = fold(q).trim(), out = [];
   if (!f) return out;
-  GOTO_PAGES.forEach(function(p){ if (fold(p[1]).indexOf(f) !== -1) out.push({ label: p[1], hint: 'página', tab: p[0] }); });
+  GOTO_PAGES.forEach(function(p){ if (fold(p[1]).indexOf(f) !== -1) out.push({ label: p[1], hint: p[2] ? 'submenu' : 'página', tab: p[0], sub: p[2] || '' }); });
   if (dashCache){
-    dashCache.cabinets.forEach(function(c){ if (fold(c.nome + ' ' + c.sala).indexOf(f) !== -1) out.push({ label: c.nome, hint: 'valência', tab: 'cabs', search: c.nome }); });
+    dashCache.cabinets.forEach(function(c){ if (fold(c.nome + ' ' + c.sala).indexOf(f) !== -1) out.push({ label: c.nome, hint: 'valência', tab: 'cabs', sub: 'valencias', search: c.nome }); });
     dashCache.items.forEach(function(i){
       if (fold(i.nome).indexOf(f) === -1) return;
       var cab = dashCache.cabinets.filter(function(c){ return c.id === i.armarioId; })[0];
-      out.push({ label: i.nome, hint: 'item · ' + (cab ? cab.nome : ''), tab: 'cabs', search: i.nome });
+      out.push({ label: i.nome, hint: 'item · ' + (cab ? cab.nome : ''), tab: 'cabs', sub: 'valencias', search: i.nome });
     });
     (dashCache.damaged || []).forEach(function(d){ if (fold(d.itemNome + ' ' + d.nomeUser).indexOf(f) !== -1) out.push({ label: d.itemNome + ' — ' + d.nomeUser, hint: 'danificado', tab: 'dmg', dmg: d.itemNome }); });
-    (dashCache.salas || []).forEach(function(s){ if (fold(s.nome).indexOf(f) !== -1) out.push({ label: s.nome, hint: 'sala', tab: 'cabs', search: s.nome }); });
-    dashCache.users.forEach(function(u){ if (fold(u.nome).indexOf(f) !== -1) out.push({ label: u.nome, hint: 'utilizador', tab: 'users' }); });
-    (dashCache.mobiliario || []).forEach(function(m){ if (fold(m.nome + ' ' + m.sala).indexOf(f) !== -1) out.push({ label: m.nome, hint: 'mobiliário · ' + m.sala, tab: 'mob', mobq: m.nome }); });
+    (dashCache.salas || []).forEach(function(s){ if (fold(s.nome).indexOf(f) !== -1) out.push({ label: s.nome, hint: 'sala', tab: 'cabs', sub: 'valencias', search: s.nome }); });
+    dashCache.users.forEach(function(u){ if (fold(u.nome).indexOf(f) !== -1) out.push({ label: u.nome, hint: 'utilizador', tab: 'users', sub: 'lista' }); });
+    (dashCache.mobiliario || []).forEach(function(m){ if (fold(m.nome + ' ' + m.sala).indexOf(f) !== -1) out.push({ label: m.nome, hint: 'mobiliário · ' + m.sala, tab: 'mob', sub: 'lista', mobq: m.nome }); });
   }
   return out.slice(0, 8);
 }
 function gotoPick_(c){
-  goTab_(c.tab);
+  goTab_(c.tab, c.sub);
   if (c.search){ var s = document.getElementById('cabs-search'); s.value = c.search; s.dispatchEvent(new Event('input')); }
   if (c.mobq){ var mq = document.getElementById('mob-search'); mq.value = c.mobq; mq.dispatchEvent(new Event('input')); }
   if (c.dmg){ document.getElementById('dmg-filter-estado').value = ''; var d = document.getElementById('dmg-search'); d.value = c.dmg; d.dispatchEvent(new Event('input')); }
@@ -3386,6 +3520,7 @@ function profLogin_(){
     pinEl.value = '';
     document.getElementById('scr-prof-login').classList.add('hidden');
     document.getElementById('scr-prof-dash').classList.remove('hidden');
+    renderSubmenu_('prof', document.querySelector('#prof-root .panel.active'));
     var tb = document.getElementById('theme-toggle'), slot = document.getElementById('prof-theme-slot');
     if (slot && tb.parentNode !== slot){ slot.appendChild(tb); tb.classList.add('in-menu'); }
     profResetIdle_();
@@ -3399,8 +3534,10 @@ document.getElementById('prof-logout').addEventListener('click', profLogout_);
 document.querySelectorAll('#prof-root .tab-btn').forEach(function(btn){
   btn.addEventListener('click', function(){
     document.querySelectorAll('#prof-root .tab-btn').forEach(function(b){ b.classList.toggle('active', b === btn); });
-    document.querySelectorAll('#prof-root .panel').forEach(function(p){ p.classList.toggle('active', p.id === 'ptab-' + btn.dataset.tab); });
+    var panel = document.getElementById('ptab-' + btn.dataset.tab);
+    document.querySelectorAll('#prof-root .panel').forEach(function(p){ p.classList.toggle('active', p === panel); });
     document.getElementById('prof-title').textContent = btn.dataset.label || '';
+    renderSubmenu_('prof', panel);
     if (btn.dataset.tab === 'hist') loadProfHist_();
     if (window.scrollTo) window.scrollTo(0, 0);
   });
@@ -3415,9 +3552,11 @@ function loadProf_(){
   }).catch(function(){ toast('Erro de ligação.'); });
 }
 
-function profGoTab_(name){
+function profGoTab_(name, sub){
   var b = document.querySelector('#prof-root .tab-btn[data-tab="' + name + '"]');
-  if (b) b.click();
+  if (!b) return;
+  b.click();
+  if (sub) showSub_('prof', document.getElementById('ptab-' + name), sub);
 }
 function renderProfInv_(){
   var d = profState.data; if (!d) return;
@@ -3556,7 +3695,7 @@ function buildProfCard_(it, d, defQty){
   row2.appendChild(qIn); row2.appendChild(qBtn); card.appendChild(row2);
   var rsvBtn = document.createElement('button'); rsvBtn.type = 'button'; rsvBtn.className = 'btn secondary'; rsvBtn.style.marginTop = '10px';
   rsvBtn.textContent = '📅 Reservar para outra data';
-  rsvBtn.addEventListener('click', function(){ document.getElementById('pres-item').value = it.id; profGoTab_('res'); });
+  rsvBtn.addEventListener('click', function(){ document.getElementById('pres-item').value = it.id; profGoTab_('res', 'reservar'); });
   card.appendChild(rsvBtn);
   if (it.saldo <= 0){ var w = document.createElement('p'); w.className = 'muted'; w.textContent = 'Sem stock disponível de momento.'; card.appendChild(w); }
   return card;
@@ -3729,7 +3868,7 @@ function renderProfHome_(){
     .map(function(f){ return [(FB_TIPOS[f.tipo] || f.tipo) + (f.itemNome ? ' — ' + f.itemNome : ''), FB_ESTADOS[f.estado] || f.estado]; }));
   if (!wrap.children.length){ var ok = document.createElement('p'); ok.className = 'muted'; ok.textContent = 'Tudo em ordem. Nada precisa de atenção.'; wrap.appendChild(ok); }
 }
-document.querySelectorAll('#prof-root .home-tile').forEach(function(t){ t.addEventListener('click', function(){ profGoTab_(t.dataset.pgo); }); });
+document.querySelectorAll('#prof-root .home-tile').forEach(function(t){ t.addEventListener('click', function(){ profGoTab_(t.dataset.pgo, t.dataset.psub || ''); }); });
 
 /* ---- reservas do professor ---- */
 function renderProfRes_(){
@@ -4907,7 +5046,10 @@ function bugTabLabel_(rootSel, panelPrefix){
   if (!p) return '';
   var tab = p.id.replace(panelPrefix, '');
   var b = document.querySelector(rootSel + ' .tab-btn[data-tab="' + tab + '"]');
-  return b ? (b.dataset.label || b.textContent.trim()) : '';
+  var label = b ? (b.dataset.label || b.textContent.trim()) : '';
+  var sub = p.getAttribute('data-sub-active');
+  if (label && sub && subIds_(p).length > 1) label += ' · ' + subLabel_(p, sub);
+  return label;
 }
 function bugOrigem_(){
   if (window.__IS_ADMIN__){

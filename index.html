@@ -364,6 +364,18 @@
     .hist-tab{font-size:12.5px; padding:8px 6px}
   }
 
+  /* submenus de página: um por cartão quando o menu tem mais do que um */
+  .submenu{display:flex; gap:4px; width:max-content; max-width:100%; padding:4px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; margin:0 0 16px; overflow-x:auto; scrollbar-width:thin}
+  .submenu-btn{flex:0 0 auto; min-height:36px; padding:7px 14px; border:0; border-radius:9px; background:transparent; color:var(--ink-soft); font:inherit; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap}
+  .submenu-btn:hover{background:var(--surface-hover); color:var(--ink)}
+  .submenu-btn.active{background:var(--surface); color:var(--mint); box-shadow:0 1px 4px rgba(29,36,51,.12)}
+  .submenu-btn:focus-visible{outline:2px solid var(--mint); outline-offset:1px}
+  .panel > .sub-hidden{display:none !important}
+  @media (max-width:560px){
+    .submenu{margin-bottom:12px}
+    .submenu-btn{font-size:12.5px; padding:7px 11px}
+  }
+
   /* ===== computadores: etiquetas para impressão ===== */
   #print-area{display:none}
   #print-area .pc-label{
@@ -706,13 +718,14 @@
 
     <main class="content">
       <header class="topbar"><h1 id="prof-title">Início</h1><span class="muted" id="prof-user"></span></header>
+      <div class="submenu hidden" id="prof-submenu" role="tablist" aria-label="Submenus da página"></div>
 
       <div class="panel active" id="ptab-home">
         <div class="home-grid">
-          <button class="home-tile" type="button" data-pgo="mine"><span class="n" id="phome-late">0</span><b>Em atraso</b><small>material fora do prazo</small></button>
-          <button class="home-tile" type="button" data-pgo="mine"><span class="n" id="phome-today">0</span><b>Termina hoje</b><small>devoluções para hoje</small></button>
-          <button class="home-tile" type="button" data-pgo="res"><span class="n" id="phome-res">0</span><b>Reservas</b><small>ativas ou futuras</small></button>
-          <button class="home-tile" type="button" data-pgo="mine"><span class="n" id="phome-mine">0</span><b>Comigo</b><small>linhas de material</small></button>
+          <button class="home-tile" type="button" data-pgo="mine" data-psub="material"><span class="n" id="phome-late">0</span><b>Em atraso</b><small>material fora do prazo</small></button>
+          <button class="home-tile" type="button" data-pgo="mine" data-psub="material"><span class="n" id="phome-today">0</span><b>Termina hoje</b><small>devoluções para hoje</small></button>
+          <button class="home-tile" type="button" data-pgo="res" data-psub="minhas"><span class="n" id="phome-res">0</span><b>Reservas</b><small>ativas ou futuras</small></button>
+          <button class="home-tile" type="button" data-pgo="mine" data-psub="material"><span class="n" id="phome-mine">0</span><b>Comigo</b><small>linhas de material</small></button>
         </div>
         <div class="card"><h2>Novidades e avisos</h2><div id="phome-list"></div></div>
       </div>
@@ -736,7 +749,7 @@
       </div>
 
       <div class="panel" id="ptab-mine">
-        <div class="card">
+        <div class="card" data-sub="material" data-sub-label="Comigo">
           <span class="tag">em teu nome</span>
           <h2>O meu material</h2>
           <p class="muted">Material que requisitaste e ainda não devolveste. Podes devolvê-lo aqui ou no QR da valência (PIN + "Devolvidos").</p>
@@ -746,7 +759,7 @@
           </div>
           <div id="prof-mine"></div>
         </div>
-        <div class="card">
+        <div class="card" data-sub="danificados" data-sub-label="Danificados">
           <span class="tag">estado</span>
           <h2>Equipamento que assinalei como danificado</h2>
           <div class="table-wrap"><table id="pdmg-table"><thead><tr><th>Data</th><th>Item</th><th>Qtd.</th><th>Estado</th><th>Nota do responsável</th></tr></thead><tbody></tbody></table></div>
@@ -754,7 +767,7 @@
       </div>
 
       <div class="panel" id="ptab-res">
-        <div class="card">
+        <div class="card" data-sub="reservar" data-sub-label="Reservar">
           <span class="tag">equipamento</span>
           <h2>Reservar equipamento</h2>
           <p class="muted">Reserva equipamento para uma data futura. Enquanto a reserva estiver ativa, outras pessoas não conseguem requisitar essas unidades nesse período. Se levares o equipamento durante a reserva, ela fica cumprida.</p>
@@ -770,7 +783,7 @@
           <button class="btn" id="pres-send" type="button">Reservar</button>
           <div class="error" id="pres-error"></div>
         </div>
-        <div class="card">
+        <div class="card" data-sub="minhas" data-sub-label="As minhas reservas">
           <span class="tag">as minhas</span>
           <h2>As minhas reservas</h2>
           <div class="table-wrap"><table id="pres-table"><thead><tr><th>Equipamento</th><th>Qtd.</th><th>Período</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
@@ -802,7 +815,7 @@
       </div>
 
       <div class="panel" id="ptab-fb">
-        <div class="card">
+        <div class="card" data-sub="enviar" data-sub-label="Enviar feedback">
           <span class="tag">ajuda a melhorar</span>
           <h2>Enviar feedback</h2>
           <p class="muted">Equipamento encontrado danificado, sugestão de melhoria, sugestão de material para comprar… O responsável recebe um aviso por email.</p>
@@ -817,7 +830,7 @@
           <button class="btn" id="pfb-send" type="button">Enviar feedback</button>
           <div class="error" id="pfb-error"></div>
         </div>
-        <div class="card">
+        <div class="card" data-sub="envios" data-sub-label="Os meus envios">
           <span class="tag">histórico</span>
           <h2>Os meus envios</h2>
           <div class="table-wrap"><table id="pfb-table"><thead><tr><th>Data</th><th>Assunto</th><th>Onde</th><th>Mensagem</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
@@ -890,37 +903,39 @@
       </div>
     </header>
 
+    <div class="submenu hidden" id="admin-submenu" role="tablist" aria-label="Submenus da página"></div>
+
     <div id="backup-banner" class="created-box hidden" style="margin:0 0 14px;border-color:var(--amber);background:var(--amber-dim)"></div>
 
     <div class="panel active" id="tab-home">
       <div class="home-grid">
-        <button class="home-tile" type="button" data-go="stock" data-low="1"><span class="n" id="home-low">0</span><b>Stock baixo</b><small>itens abaixo do limite</small></button>
+        <button class="home-tile" type="button" data-go="stock" data-sub="atual" data-low="1"><span class="n" id="home-low">0</span><b>Stock baixo</b><small>itens abaixo do limite</small></button>
         <button class="home-tile" type="button" data-go="stock" data-scroll="outstanding-card"><span class="n" id="home-out">0</span><b>Por devolver</b><small>linhas de material fora</small></button>
         <button class="home-tile" type="button" data-go="dmg"><span class="n" id="home-dmg">0</span><b>Danificados</b><small>por tratar</small></button>
         <button class="home-tile" type="button" data-go="stock" data-scroll="outstanding-card"><span class="n" id="home-late">0</span><b>Em atraso</b><small>fora do prazo de devolução</small></button>
         <button class="home-tile" type="button" data-go="req"><span class="n" id="home-req">0</span><b>Pedidos</b><small>à espera de resposta</small></button>
-        <button class="home-tile" type="button" data-go="settings"><span class="n" id="home-bk" style="font-size:24px;padding:4px 0">—</span><b>Última cópia</b><small>de segurança</small></button>
+        <button class="home-tile" type="button" data-go="settings" data-sub="copias"><span class="n" id="home-bk" style="font-size:24px;padding:4px 0">—</span><b>Última cópia</b><small>de segurança</small></button>
       </div>
       <div class="card"><h2>Precisa de atenção</h2><div id="home-list"></div></div>
     </div>
 
     <div class="panel" id="tab-cabs">
-      <div class="card">
+      <div class="card" data-sub="salas" data-sub-label="Nova sala">
         <span class="tag">1.º passo</span>
         <h2>Criar sala</h2>
         <p class="muted">Tudo começa pela sala. Depois de a criares, aparece abaixo e é lá que crias as valências (os armários, com o material) e, na página Mobiliário, os móveis.</p>
         <div class="qty-row"><input type="text" id="sal-name" maxlength="100" placeholder="ex.: Sala CTE 2" autocomplete="off"><button class="btn" id="sal-create" type="button">Criar sala</button></div>
         <div class="error" id="sal-error"></div>
       </div>
-      <div class="card" style="padding:14px 18px">
+      <div class="card" data-sub="valencias" data-sub-label="Valências" style="padding:14px 18px">
         <label style="margin-top:0">Pesquisar valências e itens</label>
         <input type="text" id="cabs-search" placeholder="🔍 Nome da valência, sala ou item…" autocomplete="off">
       </div>
-      <div id="cabs-list"></div>
+      <div id="cabs-list" data-sub="valencias"></div>
     </div>
 
     <div class="panel" id="tab-users">
-      <div class="card">
+      <div class="card" data-sub="criar" data-sub-label="Criar utilizador">
         <span class="tag">novo utilizador</span>
         <h2>Criar professor / aluno</h2>
         <div class="grid3">
@@ -933,12 +948,12 @@
         <div id="user-created" class="created-box hidden"></div>
         <p class="muted">O PIN é gerado automaticamente, enviado por email (se indicares um email) e aparece à frente do utilizador, na lista. Pode ser consultado a qualquer momento.</p>
       </div>
-      <div class="card">
+      <div class="card" data-sub="lista" data-sub-label="Lista">
         <span class="tag">utilizadores existentes</span>
         <h2>Lista</h2>
         <div class="table-wrap"><table id="users-table"><thead><tr><th>Nome</th><th>Tipo</th><th>PIN</th><th>Email</th><th></th></tr></thead><tbody></tbody></table></div>
       </div>
-      <div class="card acc-teal">
+      <div class="card acc-teal" data-sub="importar" data-sub-label="Importar">
         <span class="tag">importar</span>
         <h2>Importar utilizadores de uma lista</h2>
         <p class="muted">Cola uma lista com uma pessoa por linha: <b>nome; tipo; email</b> (tipo = aluno, professor, coordenador júnior ou coordenação CTE; o email é opcional). Também funciona se copiares as colunas de uma folha de cálculo. Os PINs são gerados automaticamente.</p>
@@ -960,7 +975,7 @@
     </div>
 
     <div class="panel" id="tab-stock">
-      <div class="card acc-amber">
+      <div class="card acc-amber" data-sub="atual" data-sub-label="Saldos">
         <span class="tag">saldo em tempo real</span>
         <h2>Stock atual — todas as valências</h2>
         <div class="grid3">
@@ -975,7 +990,7 @@
         <div class="table-wrap"><table id="stock-table"><thead><tr><th>Valência</th><th>Item</th><th>Categoria</th><th>Inicial</th><th>Limite mín.</th><th>Saldo</th></tr></thead><tbody></tbody></table></div>
       </div>
 
-      <div class="card acc-rust" id="outstanding-card">
+      <div class="card acc-rust" id="outstanding-card" data-sub="devolver" data-sub-label="Por devolver">
         <span class="tag">reconciliação</span>
         <h2>Material por devolver</h2>
         <p class="muted">Tudo o que ainda consta como requisitado por alguém, em todas as valências. Usa só depois de confirmares fisicamente que o material já está de volta — esta ação regista uma devolução para cada linha assinalada.</p>
@@ -1084,7 +1099,7 @@
     </div>
 
     <div class="panel" id="tab-mob">
-      <div class="card">
+      <div class="card" data-sub="adicionar" data-sub-label="Adicionar">
         <span class="tag">só administração</span>
         <h2>Mobiliário e equipamento fixo</h2>
         <p class="muted">Móveis, cadeiras, mesas e outro equipamento que está nas salas e não se requisita. Só tu vês esta página: não aparece no quiosque nem na área do professor.</p>
@@ -1100,7 +1115,7 @@
         <button class="btn" id="mob-add" type="button">Adicionar</button>
         <div class="error" id="mob-error"></div>
       </div>
-      <div class="card">
+      <div class="card" data-sub="lista" data-sub-label="Lista">
         <span class="tag">inventário fixo</span>
         <h2>Lista</h2>
         <div class="grid3">
@@ -1116,7 +1131,7 @@
 
     <div class="panel" id="tab-pcs">
       <div id="pc-aviso" class="notice hidden"></div>
-      <div class="card">
+      <div class="card" data-sub="criar" data-sub-label="Criar computadores">
         <span class="tag">1.º passo</span>
         <h2>Criar computadores em lote</h2>
         <p class="muted">Escolhe a sala e o intervalo: os nomes são gerados com o prefixo e a numeração (ex.: <b>PC-01</b> a <b>PC-20</b>). Computadores que já existam com o mesmo nome são ignorados — podes repetir sem duplicar.</p>
@@ -1134,7 +1149,7 @@
         <div class="muted" id="pc-resultado" style="margin-top:8px"></div>
       </div>
 
-      <div class="card">
+      <div class="card" data-sub="lista" data-sub-label="Lista">
         <span class="tag">postos de trabalho</span>
         <h2>Computadores</h2>
         <div class="grid3">
@@ -1147,7 +1162,7 @@
         <div class="table-wrap"><table id="pc-table"><thead><tr><th>Computador</th><th>Sala</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
       </div>
 
-      <div class="card">
+      <div class="card" data-sub="utilizacao" data-sub-label="Utilização">
         <span class="tag">histórico</span>
         <h2>Utilização dos computadores</h2>
         <div class="grid3">
@@ -1165,7 +1180,7 @@
         <div class="table-wrap"><table id="pch-table"><thead><tr><th>Data</th><th>Início</th><th>Fim</th><th>Aluno</th><th>Computador</th><th>Sala</th><th>Terminou por</th></tr></thead><tbody></tbody></table></div>
       </div>
 
-      <div class="card">
+      <div class="card" data-sub="aberturas" data-sub-label="Aberturas de sala">
         <span class="tag">aberturas</span>
         <h2>Aberturas de sala</h2>
         <p class="muted">Quem abriu cada sala fora do horário letivo, com que motivo e até quando (e quem fechou).</p>
@@ -1173,7 +1188,7 @@
         <div class="muted" id="pab-resumo" style="margin-top:8px"></div>
       </div>
 
-      <div class="card acc-amber">
+      <div class="card acc-amber" data-sub="qr" data-sub-label="QR da mesa">
         <span class="tag">mesa do professor</span>
         <h2>QR da mesa</h2>
         <p class="muted">Um QR por sala, para colar na mesa do professor. O código identifica a sala — não dá autorização por si só (isso é feito com o PIN, numa fase seguinte).</p>
@@ -1257,7 +1272,7 @@
     </div>
 
     <div class="panel" id="tab-settings">
-      <div class="card">
+      <div class="card" data-sub="seguranca" data-sub-label="Segurança">
         <span class="tag">segurança</span>
         <h2>Alterar password de administrador</h2>
         <label>Password atual</label>
@@ -1270,7 +1285,7 @@
         <div class="error" id="settings-pw-error"></div>
       </div>
 
-      <div class="card" style="margin-top:14px">
+      <div class="card" style="margin-top:14px" data-sub="link" data-sub-label="Link do professor">
         <span class="tag">área do professor</span>
         <h2>Link da área do professor</h2>
         <p class="muted">Os professores entram com o PIN pessoal. Partilha este link só com eles (não é preciso QR).</p>
@@ -1278,7 +1293,7 @@
         <button class="btn secondary" id="prof-link-copy" type="button">📋 Copiar link</button>
       </div>
 
-      <div class="card acc-amber" style="margin-top:14px">
+      <div class="card acc-amber" style="margin-top:14px" data-sub="avisos" data-sub-label="Avisos por email">
         <span class="tag">notificações automáticas</span>
         <h2>Emails de aviso</h2>
         <p class="muted">Preenche para ativar cada aviso. Deixa vazio para desligar.</p>
@@ -1297,7 +1312,7 @@
         <p class="muted">O limite mínimo que despoleta o aviso de stock baixo define-se por item, na aba "Valências &amp; itens". Usa o botão de teste para confirmar que os emails chegam — se algum falhar, o motivo aparece aqui e no registo abaixo.</p>
       </div>
 
-      <div class="card" style="margin-top:14px">
+      <div class="card" style="margin-top:14px" data-sub="modelos" data-sub-label="Modelos do PIN">
         <span class="tag">email do PIN</span>
         <h2>Modelos de email do PIN</h2>
         <p class="muted">Alterna entre o modelo do aluno e o do professor. Em cada um podes editar o <strong>assunto</strong> e o <strong>conteúdo específico</strong>. A introdução com o nome e o PIN, e a assinatura da Coordenação, são incluídas automaticamente e não se editam. Usa <strong>Pré-visualizar</strong> para ver o email completo antes de guardar.</p>
@@ -1305,7 +1320,7 @@
         <div id="email-modelo-editor" class="hidden"></div>
       </div>
 
-      <div class="card" style="margin-top:14px">
+      <div class="card" style="margin-top:14px" data-sub="comunicado" data-sub-label="Email a todos">
         <span class="tag">aviso a todos</span>
         <h2>Enviar email a todos os utilizadores</h2>
         <p class="muted">Para novidades (novo equipamento, sala, horário). Vai para todos os utilizadores ativos com email: alunos, professores e coordenadores. A saudação «Olá, nome» e a assinatura da Coordenação CTE são acrescentadas automaticamente.</p>
@@ -1322,7 +1337,7 @@
         <div id="broadcast-preview-box" class="hidden" style="margin-top:12px;padding:14px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2)"></div>
       </div>
 
-      <div class="card" style="margin-top:14px">
+      <div class="card" style="margin-top:14px" data-sub="registo" data-sub-label="Registo de avisos">
         <span class="tag">registo de avisos</span>
         <h2>Últimas tentativas de envio</h2>
         <p class="muted">Cada aviso automático (e cada teste) fica registado aqui, incluindo os que falharam ou foram ignorados por não haver email configurado.</p>
@@ -1330,7 +1345,7 @@
         <div class="table-wrap"><table id="notify-log-table"><thead><tr><th>Data/Hora</th><th>Tipo</th><th>Destinatário</th><th>Resultado</th><th>Detalhe</th></tr></thead><tbody></tbody></table></div>
       </div>
 
-      <div class="card acc-amber">
+      <div class="card acc-amber" data-sub="resumo" data-sub-label="Resumo semanal">
         <span class="tag">resumo semanal</span>
         <h2>Resumo semanal por email</h2>
         <p class="muted">Um email com o movimento da semana, stock baixo, material por devolver e equipamento danificado. Escolhe o dia e a hora, ou desativa.</p>
@@ -1348,7 +1363,7 @@
         <label style="display:flex;align-items:center;gap:8px;font-weight:400;text-transform:none;font-size:13px"><input type="checkbox" id="dg-atraso" style="width:auto"> Enviar um lembrete por email a quem tem material em atraso (em dias de aulas, no máximo um por pessoa e por dia)</label>
       </div>
 
-      <div class="card acc-teal">
+      <div class="card acc-teal" data-sub="copias" data-sub-label="Cópias de segurança">
         <span class="tag">cópias de segurança</span>
         <h2>Cópias de segurança</h2>
         <p class="muted">Um único ficheiro ZIP com todos os dados, guardado numa pasta do Drive. Cada cópia nova substitui a anterior (a antiga vai para o lixo só depois de a nova estar guardada). Opcionalmente, o mesmo ficheiro é enviado por email para <b>outra conta</b>, que fica com o histórico das cópias.</p>
