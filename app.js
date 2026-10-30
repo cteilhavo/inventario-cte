@@ -39,7 +39,7 @@ var QUIET_ = {
   api_adminRestock: 1, api_adminUpdateItemThreshold: 1, api_adminDeleteUser: 1, api_adminSetUserActive: 1,
   api_adminDeleteMovement: 1, api_adminUpdateMovementQty: 1, api_adminSetDamageStatus: 1, api_adminDecideRequest: 1,
   api_adminGetNotifyLog: 1, api_adminGetNotifySettings: 1, api_adminGetAutomation: 1,
-  api_adminComunicadoInfo: 1, api_adminPreviewComunicado: 1,
+  api_adminComunicadoInfo: 1, api_adminComunicadoContagem: 1, api_adminPreviewComunicado: 1,
   api_adminCreateSala: 1, api_adminRenameSala: 1, api_adminDeleteSala: 1, api_adminMobCreate: 1, api_adminMobUpdate: 1, api_adminMobDelete: 1,
   api_adminSetFeedbackState: 1, api_adminCancelarReserva: 1, api_profLogin: 1, api_profData: 1, api_profLogout: 1,
   // quiosque: validar o PIN e carregar a valência nunca bloqueiam o ecrã (só registar movimentos e pedidos)
@@ -5280,7 +5280,7 @@ function sendBroadcast_(){
    Módulo independente dos modelos de PIN. Escreve assunto,
    introdução e corpo; a assinatura é fixa e vem do servidor.
    ============================================================ */
-var CM_UI = { info: null, sending: false, bound: false };
+var CM_UI = { info: null, sending: false, bound: false, filtro: null, destinatarios: 0 };
 
 function cmEl_(id){ return document.getElementById(id); }
 
@@ -5312,6 +5312,25 @@ function cmBindOnce_(){
     if (k === 'b'){ ev.preventDefault(); cmFormat_('bold'); }
     else if (k === 'i'){ ev.preventDefault(); cmFormat_('italic'); }
   });
+  // Filtro de destinatários (os cartões são criados dinamicamente).
+  var chips = cmEl_('cm-grupos');
+  if (chips) chips.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest ? ev.target.closest('[data-cm-grupo]') : null;
+    if (!b) return;
+    cmToggleGrupo_(b.getAttribute('data-cm-grupo'));
+  });
+  var plist = cmEl_('cm-people-list');
+  if (plist) plist.addEventListener('change', function(ev){
+    var cb = ev.target;
+    if (!cb || cb.type !== 'checkbox' || !cb.getAttribute('data-cm-pessoa')) return;
+    cmTogglePessoa_(cb.getAttribute('data-cm-pessoa'), !!cb.checked);
+  });
+  var psearch = cmEl_('cm-people-search');
+  if (psearch) psearch.addEventListener('input', cmRenderPessoas_);
+  var pall = cmEl_('cm-people-all');
+  if (pall) pall.addEventListener('click', function(){ cmSelecionarTudo_(true); });
+  var pnone = cmEl_('cm-people-none');
+  if (pnone) pnone.addEventListener('click', function(){ cmSelecionarTudo_(false); });
 }
 
 function cmLoadInfo_(){
@@ -5321,10 +5340,175 @@ function cmLoadInfo_(){
       return;
     }
     CM_UI.info = res;
+    var temPessoas = Object.prototype.toString.call(res.pessoas) === '[object Array]';
+    var destBox = cmEl_('cm-dest');
+    if (destBox) destBox.classList.toggle('hidden', !temPessoas);
+    if (temPessoas){
+      if (!CM_UI.filtro) cmFiltroInicial_(); else cmFiltroSanitizar_();
+      CM_UI.destinatarios = cmContagemLocal_();
+      cmRenderGrupos_();
+      cmRenderPessoas_();
+    } else {
+      // Backend antigo: sem lista de pessoas — comporta-se como antes (todos).
+      CM_UI.filtro = null;
+      CM_UI.destinatarios = Number(res.destinatarios) || 0;
+    }
     cmRenderInfo_();
   }).catch(function(){
     cmInfoErro_('Não foi possível contar os destinatários. Usa «Atualizar» para tentar de novo.');
   });
+}
+
+/* ---- filtro de destinatários (grupos + pessoas) ---- */
+function cmFiltroInicial_(){
+  var g = {};
+  ((CM_UI.info && CM_UI.info.grupos) || []).forEach(function(x){ g[x.role] = true; });
+  CM_UI.filtro = { grupos: g, incluir: {}, excluir: {} };
+}
+function cmFiltroSanitizar_(){
+  var f = CM_UI.filtro;
+  if (!f) return;
+  var g = {};
+  ((CM_UI.info && CM_UI.info.grupos) || []).forEach(function(x){ g[x.role] = f.grupos[x.role] !== false; });
+  f.grupos = g;
+  var ids = {};
+  ((CM_UI.info && CM_UI.info.pessoas) || []).forEach(function(p){ if (p.id) ids[p.id] = true; });
+  ['incluir', 'excluir'].forEach(function(k){
+    Object.keys(f[k] || {}).forEach(function(id){ if (!ids[id]) delete f[k][id]; });
+  });
+  if (!f.incluir) f.incluir = {};
+  if (!f.excluir) f.excluir = {};
+}
+function cmPessoaPorId_(id){
+  var list = (CM_UI.info && CM_UI.info.pessoas) || [];
+  for (var i = 0; i < list.length; i++){ if (list[i].id === id) return list[i]; }
+  return null;
+}
+function cmPessoaIncluida_(p){
+  var f = CM_UI.filtro;
+  if (!p || !f) return true;
+  if (p.id && f.excluir[p.id]) return false;
+  return f.grupos[p.role] !== false || !!(p.id && f.incluir[p.id]);
+}
+function cmContagemLocal_(){
+  var n = 0;
+  ((CM_UI.info && CM_UI.info.pessoas) || []).forEach(function(p){ if (cmPessoaIncluida_(p)) n++; });
+  return n;
+}
+function cmFiltroPayload_(){
+  var f = CM_UI.filtro;
+  if (!f) return null;
+  return {
+    grupos: Object.keys(f.grupos).filter(function(r){ return f.grupos[r]; }),
+    incluir: Object.keys(f.incluir || {}),
+    excluir: Object.keys(f.excluir || {})
+  };
+}
+function cmRoleCurto_(role){
+  return role === 'professor' ? 'Professor'
+    : role === 'coordenador_junior' ? 'Coord. júnior'
+      : role === 'coordenador_cte' ? 'Coordenação'
+        : 'Aluno';
+}
+function cmRenderGrupos_(){
+  var box = cmEl_('cm-grupos');
+  if (!box) return;
+  var f = CM_UI.filtro;
+  box.innerHTML = '';
+  ((CM_UI.info && CM_UI.info.grupos) || []).forEach(function(g){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'cm-chip';
+    b.setAttribute('data-cm-grupo', g.role);
+    b.setAttribute('aria-pressed', (f && f.grupos[g.role]) ? 'true' : 'false');
+    b.disabled = !g.total;
+    var sel = 0;
+    ((CM_UI.info && CM_UI.info.pessoas) || []).forEach(function(p){ if (p.role === g.role && cmPessoaIncluida_(p)) sel++; });
+    b.appendChild(document.createTextNode(g.nome + ' '));
+    var n = document.createElement('span');
+    n.className = 'cm-chip-n';
+    n.textContent = (!g.total || sel === g.total) ? String(g.total) : (sel + '/' + g.total);
+    b.appendChild(n);
+    box.appendChild(b);
+  });
+}
+function cmRenderPessoas_(){
+  var box = cmEl_('cm-people-list');
+  if (!box) return;
+  var input = cmEl_('cm-people-search');
+  var q = fold(input ? input.value : '').trim();
+  var all = (CM_UI.info && CM_UI.info.pessoas) || [];
+  var list = all.filter(function(p){ return !q || fold(p.nome).indexOf(q) !== -1; });
+  box.innerHTML = '';
+  if (!list.length){
+    var e = document.createElement('div');
+    e.className = 'cm-empty';
+    e.textContent = all.length ? 'Sem resultados para esta pesquisa.' : 'Não há utilizadores ativos com email válido.';
+    box.appendChild(e);
+  } else {
+    list.forEach(function(p){
+      var lab = document.createElement('label');
+      lab.className = 'cm-person';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.setAttribute('data-cm-pessoa', p.id);
+      cb.checked = cmPessoaIncluida_(p);
+      if (!p.id){ cb.disabled = true; cb.title = 'Este registo não tem identificador — usa o grupo.'; }
+      var nm = document.createElement('span');
+      nm.className = 'cm-person-name';
+      nm.textContent = p.nome || '(sem nome)';
+      var rl = document.createElement('span');
+      rl.className = 'cm-person-role';
+      rl.textContent = cmRoleCurto_(p.role);
+      lab.appendChild(cb); lab.appendChild(nm); lab.appendChild(rl);
+      box.appendChild(lab);
+    });
+  }
+  cmRenderPessoasResumo_();
+}
+function cmRenderPessoasResumo_(){
+  var el = cmEl_('cm-people-summary');
+  if (!el) return;
+  var all = (CM_UI.info && CM_UI.info.pessoas) || [];
+  var sel = 0;
+  all.forEach(function(p){ if (cmPessoaIncluida_(p)) sel++; });
+  el.textContent = '· ' + sel + ' de ' + all.length;
+}
+function cmAtualizaContagemLocal_(){
+  CM_UI.destinatarios = cmContagemLocal_();
+  cmRenderInfo_();
+  cmRenderPessoasResumo_();
+}
+function cmToggleGrupo_(role){
+  var f = CM_UI.filtro;
+  if (!f || !role) return;
+  f.grupos[role] = !f.grupos[role];
+  cmRenderGrupos_();
+  cmRenderPessoas_();
+  cmAtualizaContagemLocal_();
+}
+function cmTogglePessoa_(id, quer){
+  var f = CM_UI.filtro;
+  if (!f || !id) return;
+  var p = cmPessoaPorId_(id);
+  if (!p) return;
+  delete f.incluir[id];
+  delete f.excluir[id];
+  var noGrupo = f.grupos[p.role] !== false;
+  if (quer && !noGrupo) f.incluir[id] = true;
+  if (!quer && noGrupo) f.excluir[id] = true;
+  cmRenderGrupos_(); // mostra quantos do grupo continuam selecionados
+  cmAtualizaContagemLocal_();
+}
+function cmSelecionarTudo_(on){
+  var f = CM_UI.filtro;
+  if (!f) return;
+  var g = {};
+  ((CM_UI.info && CM_UI.info.grupos) || []).forEach(function(x){ g[x.role] = !!on; });
+  CM_UI.filtro = { grupos: g, incluir: {}, excluir: {} };
+  cmRenderGrupos_();
+  cmRenderPessoas_();
+  cmAtualizaContagemLocal_();
 }
 
 function cmInfoErro_(txt){
@@ -5336,16 +5520,25 @@ function cmRenderInfo_(){
   var el = cmEl_('cm-info');
   if (!el) return;
   var i = CM_UI.info || {};
-  var n = Number(i.destinatarios) || 0;
-  var txt = n
-    ? 'Este comunicado será enviado a <b>' + n + '</b> utilizador' + (n === 1 ? '' : 'es') + ' do CTE, todos em <b>BCC</b> (cópia oculta).'
-    : '<b>Sem destinatários válidos.</b> Não há utilizadores ativos com email válido na folha Utilizadores — o envio fica bloqueado.';
+  var total = Number(i.destinatarios) || 0;
+  var n = Number(CM_UI.destinatarios) || 0;
+  var txt;
+  if (!total){
+    txt = '<b>Sem destinatários válidos.</b> Não há utilizadores ativos com email válido na folha Utilizadores — o envio fica bloqueado.';
+  } else if (!n){
+    txt = '<b>Sem destinatários selecionados.</b> Escolhe pelo menos um grupo ou uma pessoa — o envio fica bloqueado.';
+  } else {
+    txt = 'Este comunicado será enviado a <b>' + n + '</b> utilizador' + (n === 1 ? '' : 'es') + ' do CTE, todos em <b>BCC</b> (cópia oculta).';
+  }
   var extra = [];
   if (i.semEmail) extra.push(i.semEmail + ' utilizador' + (i.semEmail === 1 ? '' : 'es') + ' sem email válido');
-  if (n && i.lotes > 1) extra.push(n + ' destinatários → ' + i.lotes + ' lotes (máx. ' + i.loteMax + ' por mensagem)');
+  var lotes = n ? Math.ceil(n / (Number(i.loteMax) || 40)) : 0;
+  if (lotes > 1) extra.push(n + ' destinatários → ' + lotes + ' lotes (máx. ' + i.loteMax + ' por mensagem)');
   if (i.quota != null) extra.push('quota diária restante: ' + i.quota);
   el.innerHTML = '<span class="cm-dot" aria-hidden="true"></span><span>' + txt +
     (extra.length ? '<span class="cm-extra">' + esc(extra.join(' · ')) + '</span>' : '') + '</span>';
+  var cnt = cmEl_('cm-dest-count');
+  if (cnt) cnt.textContent = total ? (n + ' de ' + total + (n === 1 ? ' selecionado' : ' selecionados')) : '—';
   var box = cmEl_('cm-signature-box');
   // A assinatura mostrada vem do mesmo código que a acrescenta ao e-mail final.
   if (box && i.assinaturaHtml) box.innerHTML = i.assinaturaHtml;
@@ -5384,7 +5577,7 @@ function cmPreview_(){
   if (problema){ if (err) err.textContent = problema; return; }
   var btn = cmEl_('cm-preview');
   if (btn) btn.disabled = true;
-  gsRun('api_adminPreviewComunicado', adminState.token, v.assunto, v.intro, v.corpo).then(function(res){
+  gsRun('api_adminPreviewComunicado', adminState.token, v.assunto, v.intro, v.corpo, cmFiltroPayload_()).then(function(res){
     if (btn) btn.disabled = false;
     if (!res || !res.ok){
       if (err) err.textContent = cmErroTexto_(res && res.error);
@@ -5410,18 +5603,18 @@ function cmSend_(){
 
   var btn = cmEl_('cm-send');
   if (btn){ btn.disabled = true; btn.textContent = 'A confirmar…'; }
-  // Contagem atualizada no servidor imediatamente antes do envio.
-  gsRun('api_adminComunicadoInfo', adminState.token).then(function(info){
+  // Contagem exata do filtro atual, no servidor, imediatamente antes do envio.
+  gsRun('api_adminComunicadoContagem', adminState.token, cmFiltroPayload_()).then(function(info){
     if (btn){ btn.disabled = false; btn.textContent = 'Enviar comunicado'; }
     if (!info || !info.ok){
       if (err) err.textContent = cmErroTexto_(info && info.error);
       return;
     }
-    CM_UI.info = info;
+    CM_UI.destinatarios = Number(info.destinatarios) || 0;
     cmRenderInfo_();
     var n = Number(info.destinatarios) || 0;
     if (!n){
-      if (err) err.textContent = 'Não há destinatários válidos. O envio foi cancelado.';
+      if (err) err.textContent = 'Não há destinatários selecionados. O envio foi cancelado.';
       return;
     }
     var aviso = 'Enviar este comunicado a ' + n + ' utilizador' + (n === 1 ? '' : 'es') + ' do CTE?\n\n' +
@@ -5447,7 +5640,7 @@ function cmEnviarAgora_(v){
     box.className = 'cm-result';
     box.innerHTML = '<p style="margin:0">A enviar o comunicado… Pode demorar alguns segundos.</p>';
   }
-  gsRun('api_adminSendComunicado', adminState.token, v.assunto, v.intro, v.corpo, newClientId_()).then(function(res){
+  gsRun('api_adminSendComunicado', adminState.token, v.assunto, v.intro, v.corpo, newClientId_(), cmFiltroPayload_()).then(function(res){
     cmFimEnvio_();
     if (!res || !res.ok){
       if (box){ box.className = 'cm-result hidden'; box.innerHTML = ''; }

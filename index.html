@@ -525,6 +525,29 @@
   .cm-toolbar button:active{background:var(--mint); color:var(--mint-ink); border-color:var(--mint)}
   #cm-intro{min-height:74px; line-height:1.55}
   #cm-corpo{min-height:210px; line-height:1.6; font-size:14.5px}
+  .cm-dest{margin-top:14px; border:1px solid var(--border); border-radius:14px; background:var(--surface-2); padding:12px 14px}
+  .cm-dest-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:9px}
+  .cm-dest-title{font-size:11.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:var(--ink-faint)}
+  .cm-dest-count{font-size:12.5px; font-weight:700; color:var(--mint)}
+  .cm-chips{display:flex; gap:8px; flex-wrap:wrap}
+  .cm-chip{display:inline-flex; align-items:center; gap:7px; min-height:36px; padding:6px 12px; border-radius:999px; border:1px solid var(--border-strong); background:var(--surface); color:var(--ink-soft); font:inherit; font-size:13px; font-weight:600; cursor:pointer}
+  .cm-chip:hover:not(:disabled){border-color:var(--mint); color:var(--ink)}
+  .cm-chip[aria-pressed="true"]{background:var(--mint); border-color:var(--mint); color:var(--mint-ink)}
+  .cm-chip:disabled{opacity:.45; cursor:not-allowed}
+  .cm-chip-n{font-size:11.5px; opacity:.8; font-weight:700}
+  .cm-people{margin-top:11px; border-top:1px solid var(--border); padding-top:8px}
+  .cm-people summary{cursor:pointer; font-size:13px; font-weight:600; color:var(--ink-soft); padding:4px 0}
+  .cm-people-tools{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:6px 0}
+  .cm-people-tools input{flex:1 1 200px; margin:0}
+  .cm-mini{margin:0; padding:7px 10px; font-size:11px; min-height:34px}
+  .cm-people-list{max-height:260px; overflow:auto; border:1px solid var(--border); border-radius:10px; background:var(--surface); margin-top:6px}
+  .cm-person{display:flex; align-items:center; gap:10px; padding:8px 11px; border-bottom:1px solid var(--border); cursor:pointer}
+  .cm-person:last-child{border-bottom:0}
+  .cm-person:hover{background:var(--surface-hover)}
+  .cm-person input{width:auto; margin:0; flex:none}
+  .cm-person-name{flex:1; min-width:0; font-size:13.5px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .cm-person-role{font-size:11px; color:var(--ink-faint); white-space:nowrap}
+  .cm-empty{padding:12px; font-size:12.5px; color:var(--ink-faint)}
   .cm-signature{margin-top:16px; border:1px solid var(--border); border-radius:14px; background:var(--surface-2); padding:11px 12px}
   .cm-signature-head{display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin-bottom:9px}
   .cm-signature-paper{padding:12px 14px; font-size:13.5px}
@@ -545,6 +568,9 @@
     .cm-actions #cm-send{grid-column:1 / -1; grid-row:1; width:100%}
     .cm-actions #cm-preview, .cm-actions #cm-clear{grid-row:2}
     .cm-toolbar button{flex:1 1 auto; justify-content:center}
+    .cm-chips{gap:6px}
+    .cm-chip{font-size:12px; padding:6px 10px}
+    .cm-people-list{max-height:220px}
   }
 </style>
 </head>
@@ -1227,6 +1253,24 @@
         <p class="muted">Escreve um comunicado para todos os utilizadores do CTE — novas funcionalidades, equipamentos disponíveis, avisos ou novidades. A assinatura da Coordenação é acrescentada automaticamente e não pode ser editada.</p>
 
         <div class="cm-info" id="cm-info" role="status" aria-live="polite">A contar destinatários…</div>
+
+        <div class="cm-dest" id="cm-dest">
+          <div class="cm-dest-head">
+            <span class="cm-dest-title">Destinatários</span>
+            <span class="cm-dest-count" id="cm-dest-count">—</span>
+          </div>
+          <div class="cm-chips" id="cm-grupos" role="group" aria-label="Filtrar por tipo de utilizador"></div>
+          <details class="cm-people" id="cm-people">
+            <summary>Escolher pessoas específicas <span id="cm-people-summary" class="muted"></span></summary>
+            <div class="cm-people-tools">
+              <input type="text" id="cm-people-search" placeholder="Pesquisar por nome…" autocomplete="off" aria-label="Pesquisar pessoa">
+              <button class="btn secondary cm-mini" type="button" id="cm-people-all" title="Incluir todos os grupos e limpar exceções">Todos</button>
+              <button class="btn secondary cm-mini" type="button" id="cm-people-none" title="Não enviar a ninguém (começar do zero)">Nenhum</button>
+            </div>
+            <div class="cm-people-list" id="cm-people-list"></div>
+            <p class="cm-hint" id="cm-people-note">Só aparecem utilizadores ativos com email válido. Os endereços não são mostrados.</p>
+          </details>
+        </div>
 
         <div class="cm-field">
           <label for="cm-assunto">Assunto <span class="cm-req">*</span></label>
