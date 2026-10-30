@@ -769,25 +769,256 @@ function enterDashboard(){
 
 /* ==================== MODELOS DE EMAIL DO PIN (admin) ==================== */
 
-var EMAIL_MODELO_STATE = { tipo: 'aluno', id: '' };
 var EMAIL_MODELOS_CACHE = null;
+var EMAIL_PIN_ENVELOPE = {
+  assunto: 'O teu acesso ao Inventário CTE',
+  intro: 'Olá, {{nome}}!\n\nFoi criado o teu acesso ao Inventário CTE (Centro Tecnológico Especializado · AgEÍlhavo).\n\nO teu PIN pessoal é:\n{{pin}}\nO PIN é pessoal — não o partilhes com ninguém.',
+  assinatura: 'Coordenação CTE\nMensagem automática do Inventário CTE'
+};
+var EMAIL_PIN_PADRAO = {
+  aluno: '**Como usar:**\n1. Lê o QR code da valência.\n2. Introduz o PIN no teclado do ecrã.\n3. Escolhe Requisitar ou Devolvidos.',
+  professor: '**Como usar**\n1. Lê o QR code da valência.\n2. Introduz o PIN no teclado do ecrã.\n3. Escolhe Requisitar ou Devolvidos.\n\n**Na área do professor** (telemóvel ou computador)\nAbre {{link}} e entra com o PIN.'
+};
 
-function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// Estado do editor. Há um rascunho independente por tipo: editar alunos nunca toca em professores.
+var EMAIL_UI = {
+  tipo: 'aluno',
+  drafts: { aluno: null, professor: null },
+  baseline: { aluno: null, professor: null },
+  status: { aluno: 'saved', professor: 'saved' },
+  saving: { aluno: false, professor: false },
+  error: { aluno: '', professor: '' }
+};
+
+function emailEnvelope_(){
+  var e = (EMAIL_MODELOS_CACHE && EMAIL_MODELOS_CACHE.envelope) || {};
+  return {
+    assunto: e.assunto || EMAIL_PIN_ENVELOPE.assunto,
+    intro: e.intro || EMAIL_PIN_ENVELOPE.intro,
+    assinatura: e.assinatura || EMAIL_PIN_ENVELOPE.assinatura,
+    introHtml: e.introHtml || '',
+    assinaturaHtml: e.assinaturaHtml || ''
+  };
+}
+function emailPadraoCorpo_(tipo){
+  var p = EMAIL_MODELOS_CACHE && EMAIL_MODELOS_CACHE.padroes && EMAIL_MODELOS_CACHE.padroes[tipo];
+  if (typeof p === 'string' && p.trim()) return p;
+  if (p && typeof p === 'object'){
+    var t = p.corpoVariavel || p.corpoPadrao || p.corpo || '';
+    if (t) return t;
+  }
+  return EMAIL_PIN_PADRAO[tipo] || EMAIL_PIN_PADRAO.aluno;
+}
+
+function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function emailModeloBodyPre_(corpo){
   var t = String(corpo || '').replace(/\s+/g,' ').trim();
-  return esc(t.length > 90 ? t.slice(0,90)+'…' : t || '(só o envelope fixo — sem mensagem extra)');
+  return esc(t.length > 90 ? t.slice(0,90)+'…' : t || '(sem conteúdo específico)');
+}
+function emTipoLabel_(tipo){ return tipo === 'professor' ? 'professores' : 'alunos'; }
+function emSingular_(tipo){ return tipo === 'professor' ? 'professor' : 'aluno'; }
+function emClone_(d){
+  if (!d) return null;
+  return { id: d.id || '', nome: d.nome || '', assunto: d.assunto || '', corpo: d.corpo || '', novo: !!d.novo };
+}
+function emSameDraft_(a, b){
+  if (!a || !b) return false;
+  return a.id === b.id && a.nome === b.nome && a.assunto === b.assunto && a.corpo === b.corpo && !!a.novo === !!b.novo;
+}
+function emSelectedId_(tipo){
+  var c = EMAIL_MODELOS_CACHE || {};
+  return tipo === 'professor' ? (c.selProfessor || 'padrao') : (c.selAluno || 'padrao');
+}
+function emModelsOf_(tipo){
+  return ((EMAIL_MODELOS_CACHE && EMAIL_MODELOS_CACHE.modelos) || []).filter(function(m){ return m.tipo === tipo; });
+}
+function emFindModel_(tipo, id){
+  var found = null;
+  emModelsOf_(tipo).forEach(function(m){ if (m.id === id) found = m; });
+  return found;
+}
+function emDraftFromServer_(tipo){
+  var id = emSelectedId_(tipo);
+  var m = id !== 'padrao' ? emFindModel_(tipo, id) : null;
+  var env = emailEnvelope_();
+  if (m){
+    return {
+      id: m.id,
+      nome: m.nome || '',
+      assunto: m.assunto || env.assunto || EMAIL_PIN_ENVELOPE.assunto,
+      corpo: m.corpoVariavel !== undefined ? (m.corpoVariavel || '') : (m.corpo || ''),
+      novo: false
+    };
+  }
+  return {
+    id: '',
+    nome: '',
+    assunto: env.assunto || EMAIL_PIN_ENVELOPE.assunto,
+    corpo: emailPadraoCorpo_(tipo),
+    novo: false
+  };
+}
+function emSyncDrafts_(){
+  ['aluno', 'professor'].forEach(function(tipo){
+    if (!EMAIL_UI.drafts[tipo] || EMAIL_UI.status[tipo] === 'saved'){
+      var base = emDraftFromServer_(tipo);
+      EMAIL_UI.baseline[tipo] = emClone_(base);
+      EMAIL_UI.drafts[tipo] = emClone_(base);
+      EMAIL_UI.status[tipo] = 'saved';
+      EMAIL_UI.error[tipo] = '';
+    }
+  });
+}
+function emNewName_(tipo){
+  var base = 'Modelo de ' + emTipoLabel_(tipo);
+  var used = {};
+  emModelsOf_(tipo).forEach(function(m){ used[String(m.nome || '').toLowerCase()] = true; });
+  if (!used[base.toLowerCase()]) return base;
+  var i = 2;
+  while (used[(base + ' (' + i + ')').toLowerCase()]) i++;
+  return base + ' (' + i + ')';
+}
+function emErrorText_(code){
+  var map = {
+    nome_invalido: 'O nome do modelo é inválido.',
+    assunto_invalido: 'O assunto está vazio ou tem mais de 150 caracteres.',
+    corpo_invalido: 'O conteúdo tem mais de 5000 caracteres.',
+    limite_modelos: 'Atingiste o limite de modelos guardados.',
+    tipo_invalido: 'O tipo de destinatário é inválido.',
+    nao_encontrado: 'O modelo já não existe. Atualiza a página.',
+    sessao_invalida: 'Sessão expirada. Inicia sessão novamente.',
+    sem_url: 'Falta configurar o endereço da aplicação.',
+    erro_api: 'O servidor devolveu um erro. Tenta novamente.',
+    resposta_invalida: 'Resposta inválida do servidor. Tenta novamente.'
+  };
+  return map[String(code || '')] || '';
+}
+function emFetchError_(err, fallback){
+  var raw = String((err && err.message) || '');
+  var mapped = emErrorText_(raw);
+  if (mapped) return mapped;
+  if (err && err.userMessage) return String(err.userMessage);
+  return fallback || 'Não foi possível concluir a operação. Tenta novamente.';
+}
+
+function emStatusText_(st){
+  return st === 'dirty' ? 'Alterações por guardar' : st === 'saving' ? 'A guardar…' : st === 'error' ? 'Erro' : 'Guardado';
+}
+function emUpdateStatus_(){
+  var tipo = EMAIL_UI.tipo;
+  var st = EMAIL_UI.saving[tipo] ? 'saving' : (EMAIL_UI.status[tipo] === 'error' ? 'error' : (EMAIL_UI.status[tipo] === 'dirty' ? 'dirty' : 'saved'));
+  var pill = document.getElementById('em-status');
+  if (pill){ pill.setAttribute('data-state', st); pill.textContent = emStatusText_(st); }
+  var err = document.getElementById('em-error');
+  if (err) err.textContent = EMAIL_UI.error[tipo] || '';
+  var saving = !!EMAIL_UI.saving[tipo];
+  ['em-save', 'em-preview', 'em-cancel'].forEach(function(id){
+    var b = document.getElementById(id);
+    if (b) b.disabled = saving;
+  });
+  var save = document.getElementById('em-save');
+  if (save) save.textContent = saving ? 'A guardar…' : 'Guardar modelo';
+}
+function emSyncInputs_(){
+  var tipo = EMAIL_UI.tipo;
+  var d = EMAIL_UI.drafts[tipo];
+  if (!d) return;
+  var n = document.getElementById('em-nome'), a = document.getElementById('em-assunto'), c = document.getElementById('em-corpo');
+  if (n) d.nome = n.value;
+  if (a) d.assunto = a.value;
+  if (c) d.corpo = c.value;
+}
+function emOnInput_(){
+  var tipo = EMAIL_UI.tipo;
+  var d = EMAIL_UI.drafts[tipo];
+  if (!d) return;
+  emSyncInputs_();
+  EMAIL_UI.error[tipo] = '';
+  EMAIL_UI.status[tipo] = emSameDraft_(d, EMAIL_UI.baseline[tipo]) ? 'saved' : 'dirty';
+  var note = document.getElementById('em-model-note');
+  if (note) note.innerHTML = emModelNote_(tipo);
+  emUpdateStatus_();
+}
+function emFillForm_(){
+  var tipo = EMAIL_UI.tipo;
+  var d = EMAIL_UI.drafts[tipo];
+  var n = document.getElementById('em-nome'), a = document.getElementById('em-assunto'), c = document.getElementById('em-corpo');
+  if (n) n.value = d ? d.nome : '';
+  if (a) a.value = d ? d.assunto : '';
+  if (c) c.value = d ? d.corpo : '';
+  emUpdateStatus_();
+}
+function emDirty_(tipo){ return EMAIL_UI.status[tipo] === 'dirty' || EMAIL_UI.status[tipo] === 'error'; }
+function emValidateDraft_(d){
+  var nome = String((d && d.nome) || '').trim();
+  var assunto = String((d && d.assunto) || '').replace(/[\r\n]+/g, ' ').trim();
+  if (d && d.id && !nome) return 'Dá um nome ao modelo.';
+  if (nome.length > 60) return 'O nome do modelo não pode ter mais de 60 caracteres.';
+  if (!assunto) return 'Escreve o assunto do e-mail.';
+  if (assunto.length > 150) return 'O assunto não pode ter mais de 150 caracteres.';
+  if (String((d && d.corpo) || '').length > 5000) return 'O conteúdo não pode ter mais de 5000 caracteres.';
+  return '';
+}
+function emModelNote_(tipo){
+  var d = EMAIL_UI.drafts[tipo];
+  if (!d) return '';
+  if (d.novo) return '<b>Novo modelo ainda não guardado.</b> Ao guardar, passa a ser o modelo em uso para ' + emTipoLabel_(tipo) + '.';
+  if (!d.id) return 'Estás a editar o conteúdo base (Padrão). Ao guardar, é criado um modelo próprio para ' + emTipoLabel_(tipo) + '.';
+  return 'A editar «' + esc(d.nome || 'modelo') + '».';
+}
+function emTabBtn_(tipo){
+  var active = EMAIL_UI.tipo === tipo;
+  return '<button class="em-tab' + (active ? ' active' : '') + '" type="button" role="tab" aria-selected="' + (active ? 'true' : 'false') + '" data-em-tab="' + tipo + '">' +
+    '<span class="em-tab-dot"></span>' +
+    '<span>Modelo do ' + emSingular_(tipo) + '</span>' +
+    '</button>';
+}
+function emIntroFallbackHtml_(){
+  return '<p style="margin:0 0 14px 0">Olá, <b>Nome do destinatário</b>!</p>' +
+    '<p style="margin:0 0 14px 0">Foi criado o teu acesso ao <b>Inventário CTE (Centro Tecnológico Especializado · AgEÍlhavo)</b>.</p>' +
+    '<p style="margin:0 0 6px 0">O teu PIN pessoal é:</p>' +
+    '<p style="margin:0 0 6px 0;font-size:36px;line-height:1.2;font-weight:bold;letter-spacing:8px;font-family:Consolas,monospace;color:#1F3A93">4827</p>' +
+    '<p style="margin:0 0 18px 0;color:#6B7280">O PIN é pessoal — não o partilhes com ninguém.</p>';
+}
+function emSignatureFallbackHtml_(){
+  return '<p style="margin:0;padding-top:14px;border-top:1px solid #E5E7EB">' +
+    '<b style="color:#1a1a1a">Coordenação CTE</b><br>' +
+    '<span style="color:#8A8F98;font-size:12px">Mensagem automática do Inventário CTE</span></p>';
+}
+function emListHtml_(tipo){
+  var modelos = emModelsOf_(tipo);
+  if (!modelos.length){
+    return '<p class="em-hint">Ainda não há modelos guardados para ' + emTipoLabel_(tipo) + '. Enquanto não guardares um, é usado o conteúdo base (Padrão).</p>';
+  }
+  var sel = emSelectedId_(tipo);
+  return modelos.map(function(m){
+    var emUso = m.id === sel;
+    var corpo = m.corpoVariavel !== undefined ? (m.corpoVariavel || '') : (m.corpo || '');
+    return '<div class="em-list-item">' +
+      '<div class="em-list-main">' +
+      '<div class="em-list-title"><b>' + esc(m.nome) + '</b>' + (emUso ? '<span class="em-badge">em uso</span>' : '') + '</div>' +
+      '<p class="em-hint">' + esc(m.assunto || '') + ' · ' + emailModeloBodyPre_(corpo) + '</p>' +
+      '</div>' +
+      '<div class="em-list-actions">' +
+      '<button class="btn secondary" type="button" data-em-action="abrir" data-tipo="' + tipo + '" data-id="' + esc(m.id) + '">' + (emUso ? 'Editar' : 'Usar e editar') + '</button>' +
+      '<button class="btn secondary" type="button" data-em-action="preview" data-tipo="' + tipo + '" data-id="' + esc(m.id) + '">Pré-visualizar</button>' +
+      '<button class="btn danger" type="button" data-em-action="eliminar" data-tipo="' + tipo + '" data-id="' + esc(m.id) + '">Eliminar</button>' +
+      '</div></div>';
+  }).join('');
 }
 
 function initEmailModelos_() {
   if (!window.__IS_ADMIN__) return;
+  emBindPreviewModal_();
   loadEmailModelos_();
   bindBroadcastOnce_();
 }
 
 function loadEmailModelos_() {
   gsRun('api_adminGetEmailModelos', adminState.token).then(function(res){
-    if (!res.ok) return;
+    if (!res || !res.ok){ toast('Não foi possível carregar os modelos.'); return; }
     EMAIL_MODELOS_CACHE = res;
+    emSyncDrafts_();
     renderBroadcastInfo_(res.broadcast);
     renderEmailModelos_(res);
   }).catch(function(){ toast('Erro ao carregar modelos.'); });
@@ -795,64 +1026,342 @@ function loadEmailModelos_() {
 
 function renderEmailModelos_(res){
   var el = document.getElementById('email-modelos');
-  var env = res.envelope || {};
-  var html = '<div style="padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);margin-bottom:14px">' +
-    '<p class="muted" style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Envelope fixo (todos os emails de PIN)</p>' +
-    '<p style="margin:0 0 8px"><b>Assunto:</b> ' + esc(env.assunto || '') + '</p>' +
-    '<pre style="white-space:pre-wrap;font:13px/1.5 inherit;margin:0 0 10px">' + esc(env.intro || '') + '</pre>' +
-    '<pre style="white-space:pre-wrap;font:13px/1.5 inherit;margin:0;color:var(--ink-faint)">' + esc(env.assinatura || '') + '</pre>' +
-    '</div>' +
-    '<div class="grid2">' +
-    emailTipoCol_('aluno', 'Alunos', res) +
-    emailTipoCol_('professor', 'Professores', res) +
+  if (!el) return;
+  var tipo = EMAIL_UI.tipo;
+  var env = emailEnvelope_();
+  var sel = emSelectedId_(tipo);
+  var opts = '<option value="padrao"' + (sel === 'padrao' ? ' selected' : '') + '>Padrão (conteúdo base)</option>';
+  emModelsOf_(tipo).forEach(function(m){
+    opts += '<option value="' + esc(m.id) + '"' + (m.id === sel ? ' selected' : '') + '>' + esc(m.nome) + '</option>';
+  });
+  var introHtml = env.introHtml || emIntroFallbackHtml_();
+  var assinaturaHtml = env.assinaturaHtml || emSignatureFallbackHtml_();
+  var draftNovo = !!(EMAIL_UI.drafts[tipo] && EMAIL_UI.drafts[tipo].novo);
+  el.innerHTML =
+    '<div class="em-wrap">' +
+      '<div class="em-top">' +
+        '<div class="em-tabs" role="tablist" aria-label="Tipo de destinatário">' + emTabBtn_('aluno') + emTabBtn_('professor') + '</div>' +
+        '<span class="em-status" id="em-status" data-state="saved" role="status" aria-live="polite">Guardado</span>' +
+      '</div>' +
+      '<div class="em-modelbar">' +
+        '<div class="em-modelbar-main"><label for="em-modelo-select">Modelo em uso</label><select id="em-modelo-select">' + opts + '</select></div>' +
+        '<button class="btn secondary em-new" id="em-novo" type="button">Novo modelo</button>' +
+      '</div>' +
+      '<p class="em-hint" id="em-model-note">' + emModelNote_(tipo) + '</p>' +
+      '<details class="em-name"' + (draftNovo ? ' open' : '') + '>' +
+        '<summary>Nome do modelo <span class="em-hint" style="display:inline">(opcional)</span></summary>' +
+        '<input id="em-nome" type="text" maxlength="60" autocomplete="off" aria-label="Nome do modelo" placeholder="ex.: Modelo de alunos">' +
+      '</details>' +
+      '<label for="em-assunto">Assunto do e-mail</label>' +
+      '<input id="em-assunto" type="text" maxlength="150" autocomplete="off" placeholder="ex.: O teu acesso ao Inventário CTE">' +
+      '<label for="em-corpo">Conteúdo específico da mensagem</label>' +
+      '<textarea id="em-corpo" rows="9" maxlength="5000" placeholder="Acrescenta aqui só o que é próprio deste modelo. Podes deixar vazio."></textarea>' +
+      '<p class="em-hint">No assunto e no conteúdo podes usar <code>{{nome}}</code>, <code>{{link}}</code> e <code>{{perfil}}</code>. No conteúdo: <code>- </code> = lista, <code>1. </code> = lista numerada, <code>**negrito**</code>.</p>' +
+      '<div class="em-fixed">' +
+        '<div class="em-fixed-head"><span class="em-fixed-title">Introdução fixa — incluída automaticamente</span><span class="em-auto">Automático</span></div>' +
+        '<div class="em-fixed-body"><div class="em-mail-paper">' + introHtml + '</div>' +
+          '<p class="em-hint" style="margin:6px 0 0">Exemplo com nome e PIN fictícios. No envio são usados os dados reais do destinatário.</p>' +
+        '</div>' +
+      '</div>' +
+      '<div class="em-fixed">' +
+        '<div class="em-fixed-head"><span class="em-fixed-title">Assinatura fixa — incluída automaticamente</span><span class="em-auto">Automático</span></div>' +
+        '<div class="em-fixed-body"><div class="em-mail-paper em-signature">' + assinaturaHtml + '</div></div>' +
+      '</div>' +
+      '<div class="em-actions">' +
+        '<button class="btn secondary" id="em-preview" type="button">Pré-visualizar</button>' +
+        '<button class="btn" id="em-save" type="button">Guardar modelo</button>' +
+        '<button class="btn secondary" id="em-cancel" type="button">Cancelar</button>' +
+      '</div>' +
+      '<div class="error" id="em-error" role="alert"></div>' +
+      '<details class="em-models">' +
+        '<summary>Modelos guardados — ' + emTipoLabel_(tipo) + '</summary>' +
+        '<div class="em-list">' + emListHtml_(tipo) + '</div>' +
+      '</details>' +
     '</div>';
-  el.innerHTML = html;
-  el.querySelectorAll('[data-em-sel]').forEach(function(sel){
-    sel.addEventListener('change', function(){ selectEmailModelo_(sel.getAttribute('data-em-sel'), sel.value); });
+  emFillForm_();
+  el.querySelectorAll('[data-em-tab]').forEach(function(b){
+    b.addEventListener('click', function(){ emSwitchTab_(b.getAttribute('data-em-tab')); });
   });
-  el.querySelectorAll('[data-em-novo]').forEach(function(b){
-    b.addEventListener('click', function(){ openEmailModeloEditor_(b.getAttribute('data-em-novo'), '', true); });
-  });
-  el.querySelectorAll('[data-em-act]').forEach(function(b){
+  var selEl = document.getElementById('em-modelo-select');
+  if (selEl) selEl.addEventListener('change', function(){ emSelectModel_(selEl.value); });
+  var novo = document.getElementById('em-novo');
+  if (novo) novo.addEventListener('click', emNewModel_);
+  var nome = document.getElementById('em-nome');
+  if (nome) nome.addEventListener('input', emOnInput_);
+  var assunto = document.getElementById('em-assunto');
+  if (assunto) assunto.addEventListener('input', emOnInput_);
+  var corpo = document.getElementById('em-corpo');
+  if (corpo) corpo.addEventListener('input', emOnInput_);
+  var prev = document.getElementById('em-preview');
+  if (prev) prev.addEventListener('click', emPreview_);
+  var save = document.getElementById('em-save');
+  if (save) save.addEventListener('click', emSave_);
+  var cancel = document.getElementById('em-cancel');
+  if (cancel) cancel.addEventListener('click', emCancel_);
+  el.querySelectorAll('[data-em-action]').forEach(function(b){
     b.addEventListener('click', function(){
-      var act = b.getAttribute('data-em-act'), tipo = b.getAttribute('data-tipo'), id = b.getAttribute('data-id');
-      if (act === 'editar') openEmailModeloEditor_(tipo, id, false);
-      else if (act === 'eliminar') confirmarDelEmailModelo_(id, tipo);
-      else if (act === 'preview') previewEmailModeloId_(tipo, id);
+      var act = b.getAttribute('data-em-action'), t = b.getAttribute('data-tipo'), id = b.getAttribute('data-id');
+      if (act === 'abrir') emOpenModel_(t, id);
+      else if (act === 'preview') emPreviewModel_(t, id);
+      else if (act === 'eliminar') emDeleteModel_(t, id);
     });
   });
 }
 
-function emailTipoCol_(tipo, titulo, res){
-  var sel = tipo === 'professor' ? res.selProfessor : res.selAluno;
-  var modelos = (res.modelos || []).filter(function(m){ return m.tipo === tipo; });
-  var opts = '<option value="padrao"' + (sel === 'padrao' ? ' selected' : '') + '>Padrão</option>';
-  modelos.forEach(function(m){
-    opts += '<option value="' + esc(m.id) + '"' + (m.id === sel ? ' selected' : '') + '>' + esc(m.nome) + '</option>';
-  });
-  var lista = '';
-  if (!modelos.length) lista = '<p class="muted" style="font-size:12px;margin:8px 0 0">Ainda não há modelos extra. O Padrão é o que está em uso.</p>';
-  modelos.forEach(function(m){
-    lista += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">' +
-      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">' +
-      '<strong>' + esc(m.nome) + '</strong>' +
-      (m.id === sel ? '<span class="tag" style="margin:0">em uso</span>' : '') +
-      '</div>' +
-      '<p class="muted" style="font-size:12px;margin:4px 0 8px">' + emailModeloBodyPre_(m.corpoVariavel || m.corpo) + '</p>' +
-      '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
-      '<button class="btn secondary" type="button" style="margin-top:0" data-em-act="editar" data-tipo="' + tipo + '" data-id="' + esc(m.id) + '">Editar</button>' +
-      '<button class="btn secondary" type="button" style="margin-top:0" data-em-act="preview" data-tipo="' + tipo + '" data-id="' + esc(m.id) + '">Pré-visualizar</button>' +
-      '<button class="btn danger" type="button" style="margin-top:0" data-em-act="eliminar" data-tipo="' + tipo + '" data-id="' + esc(m.id) + '">Eliminar</button>' +
-      '</div></div>';
-  });
-  return '<div class="card" style="padding:12px 14px">' +
-    '<strong>' + titulo + '</strong>' +
-    '<label style="margin-top:10px">Modelo em uso (mensagem extra)</label>' +
-    '<select data-em-sel="' + tipo + '">' + opts + '</select>' +
-    '<button class="btn" type="button" data-em-novo="' + tipo + '">Criar modelo para ' + (tipo === 'professor' ? 'professores' : 'alunos') + '</button>' +
-    lista +
-    '</div>';
+function emSwitchTab_(tipo){
+  if (EMAIL_UI.tipo === tipo) return;
+  emSyncInputs_();
+  EMAIL_UI.tipo = tipo;
+  renderEmailModelos_(EMAIL_MODELOS_CACHE || {});
 }
+
+function emSelectModel_(id){
+  var tipo = EMAIL_UI.tipo;
+  if (id === emSelectedId_(tipo)){ renderEmailModelos_(EMAIL_MODELOS_CACHE || {}); return; }
+  if (emDirty_(tipo) && !confirm('Há alterações por guardar neste modelo. Descartar e mudar de modelo?')){
+    renderEmailModelos_(EMAIL_MODELOS_CACHE || {});
+    return;
+  }
+  EMAIL_UI.drafts[tipo] = null;
+  EMAIL_UI.status[tipo] = 'saved';
+  EMAIL_UI.error[tipo] = '';
+  gsRun('api_adminSelectEmailModelo', adminState.token, tipo, id).then(function(res){
+    if (!res || !res.ok){
+      toast(emErrorText_(res && res.error) || 'Não foi possível escolher o modelo.');
+      loadEmailModelos_();
+      return;
+    }
+    loadEmailModelos_();
+    toast('Modelo em uso atualizado.');
+  }).catch(function(err){
+    toast(emFetchError_(err, 'Não foi possível escolher o modelo.'));
+    loadEmailModelos_();
+  });
+}
+
+function emNewModel_(){
+  var tipo = EMAIL_UI.tipo;
+  if (EMAIL_UI.saving[tipo]) return;
+  if (emDirty_(tipo) && !confirm('Substituir as alterações atuais por um novo modelo?')) return;
+  var cur = EMAIL_UI.drafts[tipo] || emDraftFromServer_(tipo);
+  EMAIL_UI.drafts[tipo] = {
+    id: '',
+    nome: '',
+    assunto: cur.assunto || emailEnvelope_().assunto || EMAIL_PIN_ENVELOPE.assunto,
+    corpo: typeof cur.corpo === 'string' ? cur.corpo : emailPadraoCorpo_(tipo),
+    novo: true
+  };
+  EMAIL_UI.status[tipo] = 'dirty';
+  EMAIL_UI.error[tipo] = '';
+  renderEmailModelos_(EMAIL_MODELOS_CACHE || {});
+}
+
+function emCancel_(){
+  var tipo = EMAIL_UI.tipo;
+  if (EMAIL_UI.saving[tipo]) return;
+  var tinhaAlteracoes = emDirty_(tipo) || !!EMAIL_UI.error[tipo];
+  if (tinhaAlteracoes && !confirm('Descartar as alterações por guardar deste modelo?')) return;
+  EMAIL_UI.drafts[tipo] = emClone_(EMAIL_UI.baseline[tipo]) || emDraftFromServer_(tipo);
+  EMAIL_UI.status[tipo] = 'saved';
+  EMAIL_UI.error[tipo] = '';
+  emFillForm_();
+  if (tinhaAlteracoes) toast('Alterações descartadas.');
+}
+
+function emSave_(){
+  var tipo = EMAIL_UI.tipo;
+  if (EMAIL_UI.saving[tipo]) return;
+  emSyncInputs_();
+  var d = EMAIL_UI.drafts[tipo];
+  if (!d) return;
+  var problema = emValidateDraft_(d);
+  if (problema){
+    EMAIL_UI.status[tipo] = 'error';
+    EMAIL_UI.error[tipo] = problema;
+    emUpdateStatus_();
+    return;
+  }
+  var novo = !d.id;
+  var nome = d.nome || (novo ? emNewName_(tipo) : '');
+  var assunto = String(d.assunto || '').replace(/[\r\n]+/g, ' ').trim();
+  var payload = { nome: nome, tipo: tipo, assunto: assunto, corpoVariavel: d.corpo };
+  if (d.id) payload.id = d.id;
+  EMAIL_UI.saving[tipo] = true;
+  EMAIL_UI.error[tipo] = '';
+  emUpdateStatus_();
+  var savedId = d.id;
+  gsRun('api_adminSaveEmailModelo', adminState.token, payload).then(function(res){
+    if (!res || !res.ok){
+      var msgErro = emErrorText_(res && res.error) || 'Não foi possível guardar o modelo.';
+      var e = new Error(msgErro);
+      e.userMessage = msgErro;
+      throw e;
+    }
+    savedId = res.id || savedId;
+    // Guardar pode ter sucesso e a ativação falhar. Regista já o id para que uma nova
+    // tentativa atualize este modelo em vez de criar um duplicado.
+    d.id = savedId;
+    d.nome = nome;
+    if (novo && savedId){
+      return gsRun('api_adminSelectEmailModelo', adminState.token, tipo, savedId).then(function(sel){
+        if (!sel || !sel.ok){
+          var msgSel = 'O modelo foi guardado, mas não foi possível ativá-lo. ' + (emErrorText_(sel && sel.error) || 'Tenta novamente.');
+          var eSel = new Error(msgSel);
+          eSel.userMessage = msgSel;
+          throw eSel;
+        }
+        return savedId;
+      });
+    }
+    return savedId;
+  }).then(function(id){
+    d.id = id || d.id;
+    d.nome = nome;
+    d.novo = false;
+    EMAIL_UI.saving[tipo] = false;
+    EMAIL_UI.status[tipo] = 'saved';
+    EMAIL_UI.error[tipo] = '';
+    EMAIL_UI.baseline[tipo] = emClone_(d);
+    toast('Modelo guardado.');
+    loadEmailModelos_();
+  }).catch(function(err){
+    EMAIL_UI.saving[tipo] = false;
+    EMAIL_UI.status[tipo] = 'error';
+    EMAIL_UI.error[tipo] = emFetchError_(err, 'Não foi possível guardar o modelo.');
+    emUpdateStatus_();
+    toast(EMAIL_UI.error[tipo]);
+  });
+}
+
+function emPreview_(){
+  var tipo = EMAIL_UI.tipo;
+  if (EMAIL_UI.saving[tipo]) return;
+  emSyncInputs_();
+  var d = EMAIL_UI.drafts[tipo];
+  if (!d) return;
+  var problema = emValidateDraft_(d);
+  if (problema){
+    EMAIL_UI.status[tipo] = 'error';
+    EMAIL_UI.error[tipo] = problema;
+    emUpdateStatus_();
+    return;
+  }
+  var btn = document.getElementById('em-preview');
+  if (btn) btn.disabled = true;
+  gsRun('api_adminPreviewEmailModelo', adminState.token, {
+    tipo: tipo,
+    assunto: String(d.assunto || '').replace(/[\r\n]+/g, ' ').trim(),
+    corpoVariavel: d.corpo
+  }).then(function(res){
+    if (btn) btn.disabled = !!EMAIL_UI.saving[tipo];
+    if (!res || !res.ok){
+      EMAIL_UI.error[tipo] = emErrorText_(res && res.error) || 'Não foi possível pré-visualizar.';
+      emUpdateStatus_();
+      return;
+    }
+    EMAIL_UI.error[tipo] = '';
+    if (EMAIL_UI.status[tipo] === 'error'){
+      EMAIL_UI.status[tipo] = emSameDraft_(d, EMAIL_UI.baseline[tipo]) ? 'saved' : 'dirty';
+    }
+    emUpdateStatus_();
+    openEmailPreviewModal_(res.assunto, res.html);
+  }).catch(function(err){
+    if (btn) btn.disabled = false;
+    EMAIL_UI.error[tipo] = emFetchError_(err, 'Não foi possível pré-visualizar.');
+    emUpdateStatus_();
+  });
+}
+
+function emOpenModel_(tipo, id){
+  if (tipo !== EMAIL_UI.tipo){
+    if (emDirty_(EMAIL_UI.tipo) && !confirm('Há alterações por guardar no outro modelo. Descartar e abrir este?')) return;
+    EMAIL_UI.tipo = tipo;
+  }
+  if (emSelectedId_(tipo) !== id){
+    var modelo = emFindModel_(tipo, id);
+    if (!modelo){ toast('Modelo não encontrado.'); return; }
+    if (!confirm('O modelo «' + (modelo.nome || '') + '» passa a ser o modelo em uso para ' + emTipoLabel_(tipo) + '. Continuar?')) return;
+    if (emDirty_(tipo) && !confirm('Há alterações por guardar neste modelo. Descartar e abrir outro?')){
+      renderEmailModelos_(EMAIL_MODELOS_CACHE || {});
+      return;
+    }
+    EMAIL_UI.drafts[tipo] = null;
+    EMAIL_UI.status[tipo] = 'saved';
+    EMAIL_UI.error[tipo] = '';
+    gsRun('api_adminSelectEmailModelo', adminState.token, tipo, id).then(function(res){
+      if (!res || !res.ok){
+        toast(emErrorText_(res && res.error) || 'Não foi possível abrir o modelo.');
+        return;
+      }
+      loadEmailModelos_();
+    }).catch(function(err){ toast(emFetchError_(err, 'Não foi possível abrir o modelo.')); });
+  } else {
+    renderEmailModelos_(EMAIL_MODELOS_CACHE || {});
+  }
+}
+
+function emPreviewModel_(tipo, id){
+  var m = emFindModel_(tipo, id);
+  if (!m){ toast('Modelo não encontrado.'); return; }
+  gsRun('api_adminPreviewEmailModelo', adminState.token, {
+    tipo: tipo,
+    assunto: m.assunto || '',
+    corpoVariavel: m.corpoVariavel !== undefined ? (m.corpoVariavel || '') : (m.corpo || '')
+  }).then(function(res){
+    if (!res || !res.ok){ toast(emErrorText_(res && res.error) || 'Não foi possível pré-visualizar.'); return; }
+    openEmailPreviewModal_(res.assunto, res.html);
+  }).catch(function(err){ toast(emFetchError_(err, 'Não foi possível pré-visualizar.')); });
+}
+
+function emDeleteModel_(tipo, id){
+  var m = emFindModel_(tipo, id);
+  var nome = m ? m.nome : '';
+  if (!confirm('Eliminar o modelo' + (nome ? ' «' + nome + '»' : '') + '? Se estiver em uso, volta ao Padrão.')) return;
+  gsRun('api_adminDeleteEmailModelo', adminState.token, id).then(function(res){
+    if (!res || !res.ok){ toast(emErrorText_(res && res.error) || 'Não foi possível eliminar.'); return; }
+    ['aluno', 'professor'].forEach(function(t){
+      if (EMAIL_UI.drafts[t] && EMAIL_UI.drafts[t].id === id){
+        EMAIL_UI.drafts[t] = null;
+        EMAIL_UI.status[t] = 'saved';
+        EMAIL_UI.error[t] = '';
+      }
+    });
+    loadEmailModelos_();
+    toast('Modelo eliminado.');
+  }).catch(function(err){ toast(emFetchError_(err, 'Não foi possível eliminar.')); });
+}
+
+var _emModalBound = false;
+function emBindPreviewModal_(){
+  if (_emModalBound) return;
+  var modal = document.getElementById('em-preview-modal');
+  if (!modal) return;
+  _emModalBound = true;
+  var close = document.getElementById('em-preview-close');
+  if (close) close.addEventListener('click', closeEmailPreviewModal_);
+  modal.addEventListener('click', function(ev){ if (ev.target === modal) closeEmailPreviewModal_(); });
+  document.addEventListener('keydown', function(ev){
+    if (ev.key === 'Escape' && !modal.classList.contains('hidden')) closeEmailPreviewModal_();
+  });
+}
+function openEmailPreviewModal_(assunto, html){
+  var modal = document.getElementById('em-preview-modal');
+  if (!modal) return;
+  var titulo = document.getElementById('em-preview-title');
+  var body = document.getElementById('em-preview-body');
+  if (titulo) titulo.textContent = assunto || 'Sem assunto';
+  if (body) body.innerHTML = html || '';
+  modal.classList.remove('hidden');
+  document.body.classList.add('em-modal-open');
+  var close = document.getElementById('em-preview-close');
+  if (close && close.focus) close.focus();
+}
+function closeEmailPreviewModal_(){
+  var modal = document.getElementById('em-preview-modal');
+  if (modal) modal.classList.add('hidden');
+  document.body.classList.remove('em-modal-open');
+}
+
 
 document.querySelectorAll('#admin-root .tab-btn').forEach(function(btn){
   btn.addEventListener('click', function(){
@@ -4275,119 +4784,9 @@ if (window.__IS_ADMIN__){
 }
 
 
-function openEmailModeloEditor_(tipo, id, isNew){
-  var cache = EMAIL_MODELOS_CACHE;
-  if (!cache){ toast('Ainda a carregar os modelos.'); return; }
-  EMAIL_MODELO_STATE.tipo = tipo;
-  EMAIL_MODELO_STATE.id = isNew ? '' : (id || '');
-  var env = cache.envelope || {};
-  var nome = '';
-  var corpo = cache.padroes && cache.padroes[tipo] ? cache.padroes[tipo] : '';
-  if (!isNew && id){
-    var m = (cache.modelos || []).find(function(x){ return x.id === id; });
-    if (!m){ toast('Modelo não encontrado.'); return; }
-    nome = m.nome;
-    corpo = m.corpoVariavel || m.corpo || '';
-  } else {
-    nome = tipo === 'professor' ? 'Novo modelo (professores)' : 'Novo modelo (alunos)';
-  }
-  var el = document.getElementById('email-modelo-editor');
-  el.classList.remove('hidden');
-  el.innerHTML = '<div class="card" style="padding:14px;margin-top:12px">' +
-    '<strong>' + (isNew ? 'Novo modelo' : 'Editar modelo') + ' — ' + (tipo === 'professor' ? 'professores' : 'alunos') + '</strong>' +
-    '<label>Nome do modelo</label>' +
-    '<input id="eml-nome" maxlength="60" placeholder="ex.: Fase sala C.0.07">' +
-    '<p class="muted" style="font-size:12px;margin:12px 0 4px">Assunto (fixo)</p>' +
-    '<div style="padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2)">' + esc(env.assunto || '') + '</div>' +
-    '<p class="muted" style="font-size:12px;margin:12px 0 4px">Introdução (fixa — inclui o PIN)</p>' +
-    '<pre style="white-space:pre-wrap;font:13px/1.5 inherit;margin:0;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2)">' + esc(env.intro || '') + '</pre>' +
-    '<label>Mensagem extra (a única parte editável)</label>' +
-    '<textarea id="eml-corpo" rows="12" placeholder="Texto a seguir ao PIN. Podes deixar vazio."></textarea>' +
-    '<p class="muted" style="font-size:12px">O PIN já vai na introdução. Aqui pões só o que muda (ex.: «ainda só está na sala C.0.07»).</p>' +
-    '<p class="muted" style="font-size:12px;margin:12px 0 4px">Assinatura (fixa)</p>' +
-    '<pre style="white-space:pre-wrap;font:13px/1.5 inherit;margin:0;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2)">' + esc(env.assinatura || '') + '</pre>' +
-    '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">' +
-    '<button class="btn" id="eml-salvar" type="button">Guardar</button>' +
-    '<button class="btn secondary" id="eml-preview" type="button">Pré-visualizar</button>' +
-    '<button class="btn secondary" id="eml-cancel" type="button">Cancelar</button>' +
-    '</div>' +
-    '<div id="eml-preview-box" class="hidden" style="margin-top:12px;padding:14px;border:1px solid var(--border);border-radius:8px;background:#fff;color:#1a1a1a"></div>' +
-    '</div>';
-  document.getElementById('eml-nome').value = nome;
-  document.getElementById('eml-corpo').value = corpo;
-  document.getElementById('eml-salvar').addEventListener('click', saveEmailModelo_);
-  document.getElementById('eml-preview').addEventListener('click', previewEmailModeloEditor_);
-  document.getElementById('eml-cancel').addEventListener('click', closeEditor_);
-  document.getElementById('eml-corpo').focus();
-  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-function emailModeloPayload_(){
-  return {
-    nome: document.getElementById('eml-nome').value.trim(),
-    tipo: EMAIL_MODELO_STATE.tipo,
-    id: EMAIL_MODELO_STATE.id || undefined,
-    corpoVariavel: document.getElementById('eml-corpo').value
-  };
-}
-function saveEmailModelo_(){
-  var btn = document.getElementById('eml-salvar');
-  var payload = emailModeloPayload_();
-  if (!payload.nome){ toast('Dá um nome ao modelo.'); return; }
-  btn.disabled = true;
-  gsRun('api_adminSaveEmailModelo', adminState.token, payload).then(function(res){
-    btn.disabled = false;
-    if (!res.ok){
-      var msg = { nome_invalido: 'Nome inválido.', corpo_invalido: 'A mensagem é demasiado longa.', limite_modelos: 'Atingiste o limite de modelos.', tipo_invalido: 'Tipo inválido.' };
-      toast(msg[res.error] || ('Não foi possível guardar' + (res.error ? ' (' + res.error + ')' : '.') ));
-      return;
-    }
-    closeEditor_();
-    loadEmailModelos_();
-    toast('Modelo guardado.');
-  }).catch(function(){ btn.disabled = false; toast('Erro de ligação.'); });
-}
-function confirmarDelEmailModelo_(id, tipo){
-  if (!confirm('Eliminar este modelo? Se estiver em uso, volta ao Padrão.')) return;
-  gsRun('api_adminDeleteEmailModelo', adminState.token, id).then(function(res){
-    if (!res.ok){ toast('Não foi possível eliminar.'); return; }
-    closeEditor_();
-    loadEmailModelos_();
-    toast('Modelo eliminado.');
-  }).catch(function(){ toast('Erro de ligação.'); });
-}
-function selectEmailModelo_(tipo, id){
-  gsRun('api_adminSelectEmailModelo', adminState.token, tipo, id).then(function(res){
-    if (!res.ok){ toast('Não foi possível escolher o modelo.'); return; }
-    loadEmailModelos_();
-    toast('Modelo em uso atualizado.');
-  }).catch(function(){ toast('Erro de ligação.'); });
-}
 function showEmailHtmlPreview_(box, assunto, html){
   box.classList.remove('hidden');
   box.innerHTML = '<p style="margin:0 0 10px;font-size:13px;color:#555"><b>Assunto:</b> ' + esc(assunto) + '</p>' + html;
-}
-function previewEmailModeloEditor_(){
-  var box = document.getElementById('eml-preview-box');
-  gsRun('api_adminPreviewEmailModelo', adminState.token, emailModeloPayload_()).then(function(res){
-    if (!res.ok){ toast('Não foi possível pré-visualizar.'); return; }
-    showEmailHtmlPreview_(box, res.assunto, res.html);
-  }).catch(function(){ toast('Erro de ligação.'); });
-}
-function previewEmailModeloId_(tipo, id){
-  var cache = EMAIL_MODELOS_CACHE || {};
-  var m = (cache.modelos || []).find(function(x){ return x.id === id; });
-  if (!m){ toast('Modelo não encontrado.'); return; }
-  gsRun('api_adminPreviewEmailModelo', adminState.token, { tipo: tipo, corpoVariavel: m.corpoVariavel || m.corpo || '' }).then(function(res){
-    if (!res.ok){ toast('Não foi possível pré-visualizar.'); return; }
-    openEmailModeloEditor_(tipo, id, false);
-    var box = document.getElementById('eml-preview-box');
-    if (box) showEmailHtmlPreview_(box, res.assunto, res.html);
-  }).catch(function(){ toast('Erro de ligação.'); });
-}
-function closeEditor_(){
-  var el = document.getElementById('email-modelo-editor');
-  el.classList.add('hidden');
-  el.innerHTML = '';
 }
 
 var _broadcastBound = false;

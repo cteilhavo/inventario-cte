@@ -380,6 +380,79 @@
     body > *:not(#print-area){display:none !important}
     #print-area{display:block !important}
   }
+
+  /* ===== editor de modelos de email ===== */
+  .em-wrap{display:flex; flex-direction:column; gap:10px}
+  .em-top{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:2px 0 4px}
+  .em-tabs{display:flex; gap:4px; padding:4px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; flex:1 1 320px; max-width:520px}
+  .em-tab{flex:1; display:flex; align-items:center; justify-content:center; gap:8px; min-height:42px; padding:8px 12px; border:0; border-radius:9px; background:transparent; color:var(--ink-soft); font:inherit; font-size:13.5px; font-weight:600; cursor:pointer; transition:background .15s, color .15s, box-shadow .15s; white-space:nowrap}
+  .em-tab:hover{color:var(--ink); background:var(--surface-hover)}
+  .em-tab.active{background:var(--surface); color:var(--mint); box-shadow:0 1px 4px rgba(29,36,51,.12)}
+  .em-tab-dot{width:8px; height:8px; border-radius:50%; background:var(--border-strong); flex:none}
+  .em-tab.active .em-tab-dot{background:var(--mint); box-shadow:0 0 0 3px var(--mint-dim)}
+  .em-status{display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border-radius:999px; border:1px solid transparent; font-size:12px; font-weight:700; white-space:nowrap}
+  .em-status:before{content:""; width:7px; height:7px; border-radius:50%; background:currentColor}
+  .em-status[data-state="saved"]{background:var(--cnt); color:var(--cnt-ink)}
+  .em-status[data-state="dirty"]{background:var(--amber-dim); color:var(--ink); border-color:var(--amber)}
+  .em-status[data-state="saving"]{background:var(--mint-dim); color:var(--mint); border-color:var(--mint)}
+  .em-status[data-state="error"]{background:var(--danger-dim); color:var(--danger); border-color:var(--danger)}
+  .em-modelbar{display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap}
+  .em-modelbar-main{flex:1 1 240px; min-width:0}
+  .em-modelbar-main label{margin-top:0}
+  .em-modelbar .em-new{margin-top:0; flex:none}
+  .em-hint{font-size:12.5px; color:var(--ink-faint); margin:2px 0 6px; line-height:1.45}
+  .em-hint code{font-size:11.5px}
+  .em-name{margin:0 0 4px}
+  .em-name summary{cursor:pointer; font-size:12.5px; font-weight:600; color:var(--ink-faint); padding:2px 0}
+  .em-name input{margin-top:6px}
+  #em-assunto{margin-top:2px}
+  #em-corpo{margin-top:2px; min-height:150px}
+  .em-fixed{border:1px solid var(--border); border-radius:14px; overflow:hidden; background:var(--surface-2); margin-top:6px}
+  .em-fixed-head{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); flex-wrap:wrap}
+  .em-fixed-title{font-size:12.5px; font-weight:700; color:var(--ink-soft)}
+  .em-auto{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); border:1px solid var(--border-strong); border-radius:999px; padding:2px 8px; background:var(--surface)}
+  .em-fixed-body{padding:12px}
+  .em-mail-paper{background:#fff; color:#1a1a1a; border:1px solid #E5E7EB; border-radius:10px; padding:16px; font-family:Arial,Helvetica,sans-serif; font-size:14px; line-height:1.55}
+  .em-mail-paper p{margin:0 0 14px; color:inherit; font-size:inherit}
+  .em-mail-paper p:last-child{margin-bottom:0}
+  .em-signature{padding:14px 16px}
+  .em-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
+  .em-actions .btn{margin-top:0}
+  .em-actions #em-save{min-width:150px}
+  .em-models{margin-top:6px; border-top:1px solid var(--border); padding-top:10px}
+  .em-models summary{cursor:pointer; font-size:13px; font-weight:600; color:var(--ink-soft); padding:4px 0}
+  .em-list{display:flex; flex-direction:column; gap:8px; margin-top:8px}
+  .em-list-item{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:10px 12px}
+  .em-list-main{flex:1 1 280px; min-width:0}
+  .em-list-title{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+  .em-list-title b{font-size:14px}
+  .em-badge{font-size:10.5px; font-weight:700; color:var(--mint); background:var(--mint-dim); border-radius:999px; padding:2px 8px}
+  .em-list-actions{display:flex; gap:6px; flex-wrap:wrap}
+  .em-list-actions .btn{margin-top:0; min-height:34px; padding:6px 12px; font-size:13px}
+  body.em-modal-open{overflow:hidden}
+  .em-modal{position:fixed; inset:0; z-index:90; display:flex; align-items:center; justify-content:center; padding:16px; background:rgba(15,23,42,.58)}
+  .em-modal-card{width:min(660px,100%); max-height:92vh; display:flex; flex-direction:column; background:var(--surface); border:1px solid var(--border-strong); border-radius:16px; box-shadow:0 24px 60px rgba(0,0,0,.35); overflow:hidden}
+  .em-modal-head{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:14px 16px; border-bottom:1px solid var(--border)}
+  .em-modal-head h3{margin:2px 0 2px; font-size:18px; text-transform:none; letter-spacing:-.01em; color:var(--ink); font-family:"Outfit",sans-serif}
+  .em-modal-kicker{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-faint)}
+  .em-modal-body{padding:14px; overflow:auto; background:var(--bg)}
+  .em-modal .em-mail-paper{box-shadow:0 8px 24px rgba(0,0,0,.08)}
+  @media (max-width:560px){
+    .em-tabs{max-width:none; flex:1 1 100%}
+    .em-tab{font-size:12.5px; padding:8px 8px}
+    .em-status{order:2}
+    .em-modelbar .em-new{width:100%}
+    .em-actions{display:grid; grid-template-columns:1fr 1fr}
+    .em-actions #em-save{grid-column:1 / -1; grid-row:1}
+    .em-actions #em-preview, .em-actions #em-cancel{grid-row:2}
+    .em-fixed-body{padding:9px}
+    .em-mail-paper{padding:13px; font-size:13px}
+    .em-list-actions{width:100%}
+    .em-list-actions .btn{flex:1}
+    .em-modal{padding:0}
+    .em-modal-card{width:100%; max-height:100dvh; height:100dvh; border-radius:0; border:0}
+    .em-modal-body{border-radius:0}
+  }
 </style>
 </head>
 <body>
@@ -1085,7 +1158,7 @@
       <div class="card" style="margin-top:14px">
         <span class="tag">email do PIN</span>
         <h2>Modelos de email do PIN</h2>
-        <p class="muted">O assunto, a introdução (com o PIN) e a assinatura são <strong>iguais em todos os emails de PIN</strong> e não se editam. Só a mensagem a seguir ao PIN muda: escolhe o modelo em uso para alunos e para professores, ou cria um novo a partir do Padrão. Na mensagem podes usar <code>{{nome}}</code>, <code>{{link}}</code> e <code>{{perfil}}</code>; <code>- </code> = lista, <code>1. </code> = lista numerada, <code>**negrito**</code>.</p>
+        <p class="muted">Alterna entre o modelo do aluno e o do professor. Em cada um podes editar o <strong>assunto</strong> e o <strong>conteúdo específico</strong>. A introdução com o nome e o PIN, e a assinatura da Coordenação, são incluídas automaticamente e não se editam. Usa <strong>Pré-visualizar</strong> para ver o email completo antes de guardar.</p>
         <div id="email-modelos"></div>
         <div id="email-modelo-editor" class="hidden"></div>
       </div>
@@ -1161,6 +1234,22 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div id="em-preview-modal" class="em-modal hidden" role="dialog" aria-modal="true" aria-labelledby="em-preview-title">
+  <div class="em-modal-card" role="document">
+    <div class="em-modal-head">
+      <div>
+        <span class="em-modal-kicker">Pré-visualização</span>
+        <h3 id="em-preview-title">—</h3>
+        <p class="em-hint">Nome e PIN de exemplo. No envio são usados os dados reais do destinatário.</p>
+      </div>
+      <button class="icon-btn" id="em-preview-close" type="button" aria-label="Fechar pré-visualização" title="Fechar">✕</button>
+    </div>
+    <div class="em-modal-body">
+      <div class="em-mail-paper" id="em-preview-body"></div>
+    </div>
+  </div>
+</div>
 
 <!-- Área usada só na impressão das etiquetas dos computadores -->
 <div id="print-area" aria-hidden="true"></div>
