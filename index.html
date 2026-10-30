@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="pt-PT">
 <head>
 <base target="_top">
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <script>(function(){var t="light";try{t=localStorage.getItem("cte-theme")||"light";}catch(e){}document.documentElement.setAttribute("data-theme",t==="dark"?"dark":"light");})();</script>
 <title>Inventário CTE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -606,8 +606,8 @@
     <span class="tag">quiosque</span>
     <h1 class="small">Escolher valência</h1>
     <p class="muted">Normalmente chegas aqui digitalizando o QR colado na valência. Podes também escolher manualmente:</p>
-    <label>Valência / estação</label>
-    <input type="text" id="picker-search" placeholder="🔍 Pesquisar valência…" autocomplete="off">
+    <label for="picker-search">Valência / estação</label>
+    <input type="text" id="picker-search" placeholder="🔍 Pesquisar valência…" autocomplete="off" aria-label="Pesquisar valência">
     <select id="picker-select" style="margin-top:8px"></select>
     <p class="muted hidden" id="picker-empty">Nenhuma valência encontrada.</p>
     <button class="btn block" id="picker-go" type="button">Continuar</button>
@@ -617,10 +617,10 @@
     <span class="tag">identificação</span>
     <h1>Quem és tu?</h1>
     <p class="subtitle" id="pin-cabinet-label">—</p>
-    <label>PIN</label>
-    <input type="password" id="pin-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" placeholder="Introduz o teu PIN">
+    <label for="pin-input">PIN</label>
+    <input type="password" id="pin-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" placeholder="Introduz o teu PIN" aria-label="PIN pessoal" aria-describedby="pin-error">
     <button class="btn block" id="pin-submit" type="button">Confirmar</button>
-    <div class="error center" id="pin-error"></div>
+    <div class="error center" id="pin-error" role="alert"></div>
     <p class="center muted" id="pin-hint" style="margin-top:10px">O teu PIN pessoal identifica-te como professor ou aluno.</p>
   </div>
 
@@ -673,9 +673,9 @@
 
     <div id="pc-pin-bloco">
       <p class="subtitle" id="pc-pin-hint">Introduz o teu PIN para começar.</p>
-      <input type="password" id="pc-pin-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" placeholder="Introduz o teu PIN">
+      <input type="password" id="pc-pin-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" placeholder="Introduz o teu PIN" aria-label="PIN pessoal" aria-describedby="pc-erro">
       <button class="btn block" id="pc-pin-submit" type="button">Confirmar</button>
-      <div class="error center" id="pc-erro"></div>
+      <div class="error center" id="pc-erro" role="alert"></div>
     </div>
 
     <div id="pc-ok" class="hidden">
@@ -693,9 +693,9 @@
 
     <div id="sala-pin-bloco">
       <p class="subtitle" id="sala-pin-hint">Introduz o teu PIN para abrir a sala.</p>
-      <input type="password" id="sala-pin-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" placeholder="Introduz o teu PIN">
+      <input type="password" id="sala-pin-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" placeholder="Introduz o teu PIN" aria-label="PIN pessoal" aria-describedby="sala-erro">
       <button class="btn block" id="sala-pin-submit" type="button">Confirmar</button>
-      <div class="error center" id="sala-erro"></div>
+      <div class="error center" id="sala-erro" role="alert"></div>
     </div>
 
     <div id="sala-form" class="hidden">
@@ -1440,7 +1440,7 @@
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <!-- Reportar um bug: disponível em todos os ecrãs (quiosque, professor, administração, PC e sala) -->
 <button id="bug-fab" type="button" title="Reportar um bug" aria-label="Reportar um bug"><span class="bug-ic" aria-hidden="true">🐞</span><span class="bug-txt">Reportar bug</span></button>

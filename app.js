@@ -18,7 +18,7 @@ function _beginPending(){
     _slowTimer = setTimeout(function(){
       if (_pendingCount > 0){
         var el = document.getElementById('global-loading');
-        if (el) el.classList.remove('hidden');
+        if (el){ el.classList.remove('hidden'); el.setAttribute('aria-hidden', 'false'); }
       }
     }, 1000); // só mostra o ecrã de carregamento se demorar mais de 1s
   }
@@ -29,7 +29,7 @@ function _endPending(){
     clearTimeout(_slowTimer);
     _slowTimer = null;
     var el = document.getElementById('global-loading');
-    if (el) el.classList.add('hidden');
+    if (el){ el.classList.add('hidden'); el.setAttribute('aria-hidden', 'true'); }
   }
 }
 // Ações rápidas do painel (apagar, criar, repor, ativar…) nunca mostram o ecrã de carregamento:
@@ -98,6 +98,12 @@ function toast(msg){
   toast._h = setTimeout(function(){ t.classList.remove('show'); }, 2800);
 }
 
+// Os erros de formulário passam a ser anunciados por leitores de ecrã quando aparecem
+// (a mensagem é escrita no próprio nó, por isso role=alert é suficiente).
+document.querySelectorAll('.error').forEach(function(el){
+  if (!el.getAttribute('role')) el.setAttribute('role', 'alert');
+});
+
 function show(id){
   ['scr-loading','scr-picker','scr-pin','scr-cab-off','scr-kiosk','scr-done','scr-pc','scr-sala'].forEach(function(s){
     document.getElementById(s).classList.toggle('hidden', s !== id);
@@ -156,7 +162,7 @@ function playConfirmSound(){
 /* ============================================================
    QUIOSQUE
    ============================================================ */
-var kioskState = { cabinetId: window.__CABINET_ID__ || '', pin: '', token: '', user: null, cabinet: null };
+var kioskState = { cabinetId: window.__CABINET_ID__ || '', pin: '', token: '', user: null, cabinet: null, busy: false };
 
 var pickerCabs = [];
 function fillPicker(q){
@@ -488,8 +494,11 @@ function renderRequestItems(){
         if (q > it.saldo){ toast('Só há ' + fmtQty(it.saldo) + ' ' + unitLabel(it.unidade) + ' disponível.'); return; }
         if (!dias || dias < 2 || dias > 30){ toast('Indica entre 2 e 30 dias.'); return; }
         if (motivo.length < 3){ toast('Escreve o motivo do pedido.'); return; }
-        gsRun('api_kioskPedido', kioskState.token, it.id, q, dias, motivo).then(handleLoanRequestResult_)
-          .catch(function(){ toast('Erro de ligação. Tenta outra vez.'); });
+        if (kioskState.busy) return;
+        kioskState.busy = true;
+        gsRun('api_kioskPedido', kioskState.token, it.id, q, dias, motivo, novoPedidoId_()).then(handleLoanRequestResult_)
+          .catch(function(){ toast('Erro de ligação. Tenta outra vez.'); })
+          .then(function(){ kioskState.busy = false; });
       });
       // professores não veem o pedido de mais do que um dia (têm a área do professor, sem limite)
       if (!isProfKiosk_()){ card.appendChild(moreBtn); card.appendChild(loanForm); }
@@ -652,18 +661,36 @@ function handleDamageLaterResult_(res){
 }
 
 var KIOSK_METODOS = { api_registerConsumo: 'api_kioskConsumo', api_registerLevantamento: 'api_kioskLevantamento', api_registerDevolucao: 'api_kioskDevolucao' };
+
+// Identificador único por gesto: se o mesmo pedido chegar duas vezes ao servidor (duplo toque,
+// rede lenta, reenvio), o servidor devolve o resultado anterior em vez de registar outro movimento.
+function novoPedidoId_(){
+  try{ if (window.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID(); }catch(e){}
+  var a = [];
+  for (var i = 0; i < 16; i++) a.push(Math.floor(Math.random() * 256));
+  a[6] = (a[6] & 15) | 64; a[8] = (a[8] & 63) | 128;
+  var h = a.map(function(b){ return (b < 16 ? '0' : '') + b.toString(16); }).join('');
+  return h.slice(0,8) + '-' + h.slice(8,12) + '-' + h.slice(12,16) + '-' + h.slice(16,20) + '-' + h.slice(20);
+}
+
 function doAction(fnName, itemId, qty, successMsg){
-  gsRun(KIOSK_METODOS[fnName] || fnName, kioskState.token, itemId, qty).then(function(res){
+  if (kioskState.busy) return;
+  kioskState.busy = true;
+  gsRun(KIOSK_METODOS[fnName] || fnName, kioskState.token, itemId, qty, novoPedidoId_()).then(function(res){
     if (res.ok) applyKioskOptimistic_(fnName, itemId, qty);
     handleActionResult(res, successMsg);
-  }).catch(function(){ toast('Erro de ligação. Tenta outra vez.'); });
+  }).catch(function(){ toast('Erro de ligação. Tenta outra vez.'); })
+    .then(function(){ kioskState.busy = false; });
 }
 
 function doActionWithFlag(fnName, itemId, qty, flag, successMsg, detalhes){
-  gsRun(KIOSK_METODOS[fnName] || fnName, kioskState.token, itemId, qty, flag, detalhes || null).then(function(res){
+  if (kioskState.busy) return;
+  kioskState.busy = true;
+  gsRun(KIOSK_METODOS[fnName] || fnName, kioskState.token, itemId, qty, flag, detalhes || null, novoPedidoId_()).then(function(res){
     if (res.ok) applyKioskOptimistic_(fnName, itemId, qty);
     handleActionResult(res, successMsg);
-  }).catch(function(){ toast('Erro de ligação. Tenta outra vez.'); });
+  }).catch(function(){ toast('Erro de ligação. Tenta outra vez.'); })
+    .then(function(){ kioskState.busy = false; });
 }
 
 // Atualiza kioskData localmente para o ecrã seguinte já vir correto,
@@ -695,9 +722,12 @@ function handleActionResult(res, successMsg){
       : res.error === 'detalhes_em_falta' ? 'Preenche as perguntas sobre o dano.'
       : res.error === 'sem_stock' ? 'Já não há equipamento suficiente disponível.'
       : res.error === 'prazo_invalido' ? 'O prazo escolhido já passou. Escolhe outro.'
-      : res.error === 'reservado' ? 'Este equipamento está reservado por um professor nesse período. Escolhe um prazo mais curto.' : 'Não foi possível registar. Tenta outra vez.';
+      : res.error === 'reservado' ? 'Este equipamento está reservado por um professor nesse período. Escolhe um prazo mais curto.'
+      : res.error === 'ocupado' ? 'O sistema está a registar outro movimento. Tenta outra vez dentro de instantes.'
+      : res.error === 'item_fora_da_valencia' ? 'Este material não pertence a esta valência. Atualiza a página e tenta de novo.'
+      : 'Não foi possível registar. Tenta outra vez.';
     toast(msg);
-    if (res.error === 'prazo_invalido' || res.error === 'sem_stock') loadKioskData();
+    if (res.error === 'prazo_invalido' || res.error === 'sem_stock' || res.error === 'item_fora_da_valencia') loadKioskData();
     return;
   }
   document.getElementById('done-msg').textContent = 'Movimento registado!';
@@ -3546,7 +3576,7 @@ document.getElementById('prof-link-copy').addEventListener('click', function(){
 /* ============================================================
    ÁREA DO PROFESSOR (?prof=1)
    ============================================================ */
-var profState = { token: '', data: null };
+var profState = { token: '', data: null, busy: false };
 var profIdleTimer = null;
 function profResetIdle_(){ clearTimeout(profIdleTimer); if (profState.token) profIdleTimer = setTimeout(profLogout_, 20 * 60 * 1000); }
 ['click', 'touchstart', 'keydown'].forEach(function(evt){ document.addEventListener(evt, function(){ if (profState.token) profResetIdle_(); }); });
@@ -3669,7 +3699,8 @@ function profAfterMove_(res, okMsg){
     var m = { sem_stock: 'Já não há equipamento suficiente disponível.', prazo_invalido: 'A hora escolhida já passou. Escolhe outra.', dias_invalidos: 'Indica um número de dias válido.',
               quantidade_invalida: 'Indica uma quantidade válida.', utilizador_inativo: 'O teu acesso está desativado.',
               excede_posse: 'Não tens essa quantidade na tua posse.', detalhes_em_falta: 'Preenche as perguntas sobre o dano.',
-              reservado: 'Este equipamento está reservado por outra pessoa nesse período.', nada_por_devolver: 'Já não tens este material por devolver.' };
+              reservado: 'Este equipamento está reservado por outra pessoa nesse período.', nada_por_devolver: 'Já não tens este material por devolver.',
+              ocupado: 'O sistema está a registar outro movimento. Tenta outra vez dentro de instantes.', item_fora_da_valencia: 'Este material já não pertence a essa valência. Atualiza a página.' };
     toast(m[res.error] || 'Não foi possível registar. Tenta outra vez.');
     if (res.error === 'sem_stock' || res.error === 'prazo_invalido' || res.error === 'excede_posse') loadProf_();
     return;
@@ -3715,9 +3746,12 @@ function buildProfCard_(it, d, defQty){
       var q = Number(inp.value);
       if (!q || q <= 0){ toast('Indica uma quantidade válida.'); return; }
       if (q > it.saldo && !confirm('Vais consumir mais do que o saldo disponível (' + fmtQty(it.saldo) + ' ' + unitLabel(it.unidade) + '). Confirmas?')) return;
-      gsRun('api_profConsumo', profState.token, it.id, q).then(function(res){
+      if (profState.busy) return;
+      profState.busy = true;
+      gsRun('api_profConsumo', profState.token, it.id, q, novoPedidoId_()).then(function(res){
         profAfterMove_(res, 'Registaste ' + fmtQty(q) + ' ' + unitLabel(it.unidade) + ' de "' + it.nome + '".');
-      }).catch(function(){ toast('Erro de ligação. Tenta outra vez.'); });
+      }).catch(function(){ toast('Erro de ligação. Tenta outra vez.'); })
+        .then(function(){ profState.busy = false; });
     });
     row.appendChild(inp); row.appendChild(b); card.appendChild(row);
     return card;
@@ -3752,9 +3786,12 @@ function buildProfCard_(it, d, defQty){
       dias = Math.floor(Number(diasIn.value)); prazo = '';
       if (!dias || dias < 1 || dias > 365){ toast('Indica um número de dias entre 1 e 365.'); return; }
     } else if (!prazo){ toast('Escolhe até quando precisas do equipamento.'); return; }
-    gsRun('api_profRequisitar', profState.token, it.id, q, prazo, dias).then(function(res){
+    if (profState.busy) return;
+    profState.busy = true;
+    gsRun('api_profRequisitar', profState.token, it.id, q, prazo, dias, novoPedidoId_()).then(function(res){
       profAfterMove_(res, 'Requisitaste ' + fmtQty(q) + ' un de "' + it.nome + '". Devolve até ' + fmtPrazo_(res.prazo || prazo) + '.');
-    }).catch(function(){ toast('Erro de ligação. Tenta outra vez.'); });
+    }).catch(function(){ toast('Erro de ligação. Tenta outra vez.'); })
+      .then(function(){ profState.busy = false; });
   });
   row2.appendChild(qIn); row2.appendChild(qBtn); card.appendChild(row2);
   var rsvBtn = document.createElement('button'); rsvBtn.type = 'button'; rsvBtn.className = 'btn secondary'; rsvBtn.style.marginTop = '10px';
@@ -3799,16 +3836,19 @@ function renderProfMine_(){
       if (!q || q <= 0 || q > s.h.qty){ toast('Confirma a quantidade de "' + s.h.nome + '".'); return; }
       var dano = s.dmgCheck.checked, det = null;
       if (dano){ det = s.form.readDetails(); if (!det) return; }
-      lista.push({ itemId: s.h.id, quantidade: q, danificado: dano, detalhes: det });
+      lista.push({ itemId: s.h.id, quantidade: q, danificado: dano, detalhes: det, pedidoId: novoPedidoId_() });
     }
     if (!confirm('Devolver ' + lista.length + ' item(ns)?' + (lista.some(function(x){ return x.danificado; }) ? '\nOs assinalados como danificados avisam o responsável.' : ''))) return;
+    if (profState.busy) return;
+    profState.busy = true;
     gsRun('api_profDevolverVarios', profState.token, lista).then(function(res){
       if (!res.ok){ if (res.error === 'sessao_invalida') profExpired_(); else toast('Não foi possível devolver.'); return; }
       var falhas = res.results.filter(function(r){ return !r.ok; }).length;
       toast(res.feitos + ' devolvido(s)' + (falhas ? ' · ' + falhas + ' falharam (confirma a lista).' : '.'));
       if (res.feitos) playConfirmSound();
       loadProf_();
-    }).catch(function(){ toast('Erro de ligação. Confirma a lista antes de repetir.'); });
+    }).catch(function(){ toast('Erro de ligação. Confirma a lista antes de repetir.'); })
+      .then(function(){ profState.busy = false; });
   };
 
   order.forEach(function(name){
@@ -3869,9 +3909,12 @@ function renderProfMine_(){
         if (q > h.qty){ toast('Só tens ' + fmtQty(h.qty) + ' ' + unitLabel(h.unidade) + ' em teu nome.'); return; }
         var dano = dmgCheck.checked, det = null;
         if (dano){ det = form.readDetails(); if (!det) return; }
-        gsRun('api_profDevolver', profState.token, h.id, q, dano, det).then(function(res){
+        if (profState.busy) return;
+        profState.busy = true;
+        gsRun('api_profDevolver', profState.token, h.id, q, dano, det, novoPedidoId_()).then(function(res){
           profAfterMove_(res, 'Devolveste ' + fmtQty(q) + ' ' + unitLabel(h.unidade) + ' de "' + h.nome + '"' + (dano ? ' (assinalado como danificado — o responsável vai ser avisado).' : '.'));
-        }).catch(function(){ toast('Erro de ligação. Tenta outra vez.'); });
+        }).catch(function(){ toast('Erro de ligação. Tenta outra vez.'); })
+          .then(function(){ profState.busy = false; });
       });
       states.push(st); groupStates.push(st);
       wrap.appendChild(row);
