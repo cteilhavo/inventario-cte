@@ -1,4 +1,3 @@
-
 (function(){
 
 /* ---- parâmetros do URL (substituem a injeção do HtmlService) ---- */
@@ -194,7 +193,7 @@ function goPin(){
   document.getElementById('pin-error').textContent = '';
   document.getElementById('pin-hint').textContent = 'O teu PIN pessoal identifica-te como professor ou aluno.';
   clearInterval(pinLockInterval);
-  keypadEl.querySelectorAll('button').forEach(function(b){ b.disabled = false; });
+  setPinControls_(false);
   renderPinDots();
   if (kioskState.cabLabel){ document.getElementById('pin-cabinet-label').textContent = kioskState.cabLabel; }
   else gsRun('api_getCabinetInfo', kioskState.cabinetId).then(function(info){
@@ -202,46 +201,31 @@ function goPin(){
     document.getElementById('pin-cabinet-label').textContent = kioskState.cabLabel;
   }).catch(function(){});
   show('scr-pin');
+  focusPin_();
 }
 
-var KEYS = ['1','2','3','4','5','6','7','8','9','⌫','0','OK'];
-var keypadEl = document.getElementById('keypad');
-KEYS.forEach(function(k){
-  var b = document.createElement('button');
-  b.type = 'button';
-  b.textContent = k;
-  if (k === '⌫' || k === 'OK') b.classList.add('wide');
-  b.addEventListener('click', function(){ onKey(k); });
-  keypadEl.appendChild(b);
+var pinInput = document.getElementById('pin-input');
+var pinSubmitBtn = document.getElementById('pin-submit');
+function renderPinDots(){ pinInput.value = kioskState.pin; }
+pinInput.addEventListener('input', function(){
+  var v = pinInput.value.replace(/\D/g, '').slice(0, 8);
+  if (v !== pinInput.value) pinInput.value = v;
+  kioskState.pin = v;
 });
-
-function renderPinDots(){
-  var wrap = document.getElementById('pin-dots');
-  wrap.innerHTML = '';
-  var len = Math.max(kioskState.pin.length, 4);
-  for (var i=0;i<len;i++){
-    var d = document.createElement('span');
-    if (i < kioskState.pin.length) d.classList.add('filled');
-    wrap.appendChild(d);
-  }
-}
+pinInput.addEventListener('keydown', function(e){ if (e.key === 'Enter'){ e.preventDefault(); submitPin(); } });
+pinSubmitBtn.addEventListener('click', submitPin);
+function setPinControls_(disabled){ pinInput.disabled = disabled; pinSubmitBtn.disabled = disabled; }
+function focusPin_(){ try{ pinInput.focus(); }catch(e){} }
 
 var pinBusy = false;
 function setPinBusy_(b){
   pinBusy = b;
-  keypadEl.querySelectorAll('button').forEach(function(x){ x.disabled = b; });
+  setPinControls_(b);
+  if (!b) focusPin_();
   document.getElementById('pin-hint').textContent = b ? 'A verificar…' : 'O teu PIN pessoal identifica-te como professor ou aluno.';
 }
-function onKey(k){
-  if (pinBusy) return;
-  if (k === '⌫'){ kioskState.pin = kioskState.pin.slice(0,-1); renderPinDots(); return; }
-  if (k === 'OK'){ submitPin(); return; }
-  if (kioskState.pin.length >= 8) return;
-  kioskState.pin += k;
-  renderPinDots();
-}
-
 function submitPin(){
+  kioskState.pin = pinInput.value.replace(/\D/g, '');
   if (kioskState.pin.length < 4){ document.getElementById('pin-error').textContent = 'PIN demasiado curto.'; return; }
   document.getElementById('pin-error').textContent = '';
   if (pinBusy) return;
@@ -276,7 +260,7 @@ var pinLockInterval = null;
 function startPinLock(seconds){
   kioskState.pin = '';
   renderPinDots();
-  keypadEl.querySelectorAll('button').forEach(function(b){ b.disabled = true; });
+  setPinControls_(true);
   var remaining = seconds;
   var hint = document.getElementById('pin-hint');
   var errorEl = document.getElementById('pin-error');
@@ -289,7 +273,8 @@ function startPinLock(seconds){
       clearInterval(pinLockInterval);
       errorEl.textContent = '';
       hint.textContent = 'O teu PIN pessoal identifica-te como professor ou aluno.';
-      keypadEl.querySelectorAll('button').forEach(function(b){ b.disabled = false; });
+      setPinControls_(false);
+      focusPin_();
     }
   }
   tick();
