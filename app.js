@@ -765,7 +765,7 @@ function enterDashboard(){
   refreshDashboard();
   loadNotifySettings_();
   renderNotifyLog_();
-  initEmailModelos_();
+  try { initEmailModelos_(); } catch (e) { /* não bloqueia o dashboard se a API de modelos falhar */ }
 }
 
 /* ==================== MODELOS DE EMAIL DO PIN (admin) ==================== */
