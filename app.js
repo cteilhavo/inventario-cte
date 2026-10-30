@@ -800,7 +800,7 @@ function loadEmailModelos_() {
         '<strong>' + esc(m.nome) + '</strong>' +
         '<span class="tag" style="font-size:11px">' + (ativo ? '<b>Em uso</b>' : 'selecionado') + '</span>' +
         '</div>' +
-        '<div class="muted" style="font-size:12px;margin-top:4px;word-break:break-all">' + emailModeloBodyPre_(m.corpo) + '</div>' +
+        '<div class="muted" style="font-size:12px;margin-top:4px;word-break:break-all">' + emailModeloBodyPre_(m.corpoVariavel || m.corpo) + '</div>' +
         '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">' +
         modeloBtn_('editar', m.tipo, m.id, false) +
         modeloBtn_('duplicar', m.tipo, m.id, true) +
@@ -816,7 +816,7 @@ function loadEmailModelos_() {
 
 function tipoCard_(tipo, padrao) {
   var typeLabel = tipo === 'professor' ? 'Professores' : 'Alunos';
-  var bodyPreview = padrao ? emailModeloBodyPre_(padrao.corpo) : '';
+  var bodyPreview = padrao ? emailModeloBodyPre_(padrao.corpoPadrao || padrao.corpo) : '';
   return '<div class="card" style="padding:12px 14px;flex:1;min-width:220px">' +
     '<div style="display:flex;align-items:center;justify-content:space-between"><strong>' + typeLabel + '</strong>' +
     '<span class="tag" style="font-size:11px">padrão</span></div>' +
@@ -4290,15 +4290,16 @@ function openEmailModeloEditor_(tipo, id, duplicado){
       return;
     }
     if (id === 'padrao') {
-      openEditorForm_(tipo + ' (padrão)', res.padroes[tipo].assunto, res.padroes[tipo].corpo, res.padroes);
+      openEditorForm_(tipo + ' (padrão)', res.padroes[tipo].assunto, res.padroes[tipo].corpoPadrao || res.padroes[tipo].corpo, res.padroes);
       return;
     }
     var m = res.modelos.find(function(x){ return x.tipo === tipo && x.id === id; });
     if (!m) return toast('Modelo não encontrado.');
-    openEditorForm_(m.nome, m.assunto, m.corpo, res.padroes);
+    openEditorForm_(m.nome, m.assunto, m.corpoVariavel || m.corpo, res.padroes);
   }).catch(function(){ toast('Erro de ligação.'); });
 }
 function openEditorForm_(nome, assunto, corpo, padroes){
+  var partes = separarPartesCorpo_(corpo || '');
   var el = document.getElementById('email-modelo-editor');
   el.innerHTML = '<div class="card" style="padding:14px">' +
     '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">' +
@@ -4309,11 +4310,13 @@ function openEditorForm_(nome, assunto, corpo, padroes){
     '<div class="space-between" style="gap:10px;flex-wrap:wrap;margin-top:10px">' +
     '<div style="flex:1;min-width:240px"><label>Nome do modelo</label><input class="w-full" id="eml-nome" placeholder="ex.: Manto de natal"/></div>' +
     '<div style="flex:1;min-width:240px"><label>Assunto</label><input class="w-full" id="eml-assunto" placeholder="ex.: 🔑 O teu acesso ao Inventário CTE"/></div>' +
-    '<div style="flex:1;min-width:240px"><label>Corpo (texto simples; <code>- </code> = lista, <code>1. </code> = numerada, <code>**negrito**</code>)</label><textarea id="eml-corpo" class="w-full" rows="14" placeholder="Olá, {{nome}}!&#10;&#10;Foi criado o teu acesso de {{perfil}} ao Inventário CTE.&#10;&#10;O teu PIN pessoal é:&#10;{{pin}}&#10;&#10;O PIN é pessoal — não o partilhes com ninguém.">' + esc(corpo || '') + '</textarea></div>' +
+    '<div style="flex:1;min-width:240px"><label style="color:#777;font-size:12px">Introdução (fixa — nunca altera)</label><textarea id="eml-intro" class="w-full" rows="4" readonly style="background:#F0F0EC;color:#5E6574">' + esc(partes.intro) + '</textarea><p class="muted" style="font-size:11px;margin-top:4px">Texto fixo que aparece no topo de todos os emails.</p></div>' +
+    '<div style="flex:1;min-width:240px"><label>Mensagem (editável — é aqui que alteras)</label><textarea id="eml-corpo" class="w-full" rows="12" placeholder="Olá, {{nome}}!&#10;&#10;Aqui está o teu PIN: {{pin}}&#10;&#10;O PIN é pessoal e intransmissível.">' + esc(partes.corpo) + '</textarea><p class="muted" style="font-size:11px;margin-top:4px">Use {{nome}}, {{pin}}, {{link}} e {{perfil}}. Linhas a começar por "- " = lista; "1. " = numerada; **negrito**.</p></div>' +
+    '<div style="flex:1;min-width:240px"><label style="color:#777;font-size:12px">Assinatura (fixa — nunca altera)</label><textarea id="eml-assinatura" class="w-full" rows="4" readonly style="background:#F0F0EC;color:#5E6574">' + esc(partes.assinatura) + '</textarea><p class="muted" style="font-size:11px;margin-top:4px">Texto fixo que aparece no final de todos os emails.</p></div>' +
     '</div>' +
     '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">' +
     '<button class="btn" id="eml-salvar" type="button">💾 Guardar modelo</button>' +
-    '<button class="btn secondary" id="eml-proximo" type="button">Próximo</button>' +
+    '<button class="btn secondary" id="eml-preview" type="button">👁️ Pré-visualizar</button>' +
     '<button class="btn secondary" id="eml-voltar" type="button">Cancelar</button>' +
     '</div>' +
     '<p class="muted" style="font-size:12px;margin-top:10px">Variáveis: <code>{{nome}}</code>, <code>{{pin}}</code>, <code>{{link}}</code>, <code>{{perfil}}</code>. O PIN é sempre substituído pelo valor do registo de cada utilizador.</p>' +
@@ -4321,21 +4324,41 @@ function openEditorForm_(nome, assunto, corpo, padroes){
   document.getElementById('eml-nome').value = nome || '';
   document.getElementById('eml-nome').value = nome || '';
   document.getElementById('eml-assunto').value = assunto || '';
-  document.getElementById('eml-corpo').value = corpo || '';
+  document.getElementById('eml-corpo').value = partes.corpo;
   if (padroes) {
     document.getElementById('eml-nome').placeholder = (nome || 'Novo modelo') + ' — baseia-te no padrão';
   }
   document.getElementById('eml-salvar').addEventListener('click', feedEditorAndSave_);
-  document.getElementById('eml-proximo').addEventListener('click', feedEditorAndSave_);
+  document.getElementById('eml-preview').addEventListener('click', function(){ previewEmailModelo_(EMAIL_MODELO_STATE.tipo, EMAIL_MODELO_STATE.id); });
   document.getElementById('eml-voltar').addEventListener('click', closeEditor_);
   document.getElementById('eml-cancel').addEventListener('click', closeEditor_);
-  document.getElementById('eml-nome').focus();
+  document.getElementById('eml-corpo').focus();
+}
+function separarPartesCorpo_(texto){
+  var t = texto || '';
+  var intro = '', corpo = '', assinatura = '';
+  var mIntro = t.match(/^([\s\S]*?)\n\n--\n/);
+  if (mIntro){
+    intro = mIntro[1];
+    t = t.slice(mIntro[0].length);
+  }
+  var mAss = t.match(/\n--\n([\s\S]*)$/);
+  if (mAss){
+    assinatura = mAss[1];
+    t = t.slice(0, t.length - mAss[0].length);
+  }
+  corpo = t.trim();
+  return { intro: intro, corpo: corpo, assinatura: assinatura };
 }
 function feedEditor_(){
   EMAIL_MODELO_STATE.val = {
     nome: document.getElementById('eml-nome').value.trim(),
     assunto: document.getElementById('eml-assunto').value.trim(),
-    corpo: document.getElementById('eml-corpo').value
+    tipo: EMAIL_MODELO_STATE.tipo,
+    id: EMAIL_MODELO_STATE.id || undefined,
+    corpoVariavel: document.getElementById('eml-corpo').value,
+    introFixa: document.getElementById('eml-intro').value,
+    assinaturaFixa: document.getElementById('eml-assinatura').value
   };
 }
 function feedEditorAndSave_(){
