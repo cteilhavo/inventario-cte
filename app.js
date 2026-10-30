@@ -1012,7 +1012,6 @@ function initEmailModelos_() {
   if (!window.__IS_ADMIN__) return;
   emBindPreviewModal_();
   loadEmailModelos_();
-  bindBroadcastOnce_();
 }
 
 function loadEmailModelos_() {
@@ -1020,7 +1019,6 @@ function loadEmailModelos_() {
     if (!res || !res.ok){ toast('Não foi possível carregar os modelos.'); return; }
     EMAIL_MODELOS_CACHE = res;
     emSyncDrafts_();
-    renderBroadcastInfo_(res.broadcast);
     renderEmailModelos_(res);
   }).catch(function(){ toast('Erro ao carregar modelos.'); });
 }
@@ -5205,75 +5203,6 @@ if (window.__IS_ADMIN__){
   bootKiosk();
 }
 
-
-function showEmailHtmlPreview_(box, assunto, html){
-  box.classList.remove('hidden');
-  box.innerHTML = '<p style="margin:0 0 10px;font-size:13px;color:#555"><b>Assunto:</b> ' + esc(assunto) + '</p>' + html;
-}
-
-var _broadcastBound = false;
-function bindBroadcastOnce_(){
-  if (_broadcastBound) return;
-  var send = document.getElementById('broadcast-send');
-  var prev = document.getElementById('broadcast-preview');
-  if (!send || !prev) return;
-  _broadcastBound = true;
-  prev.addEventListener('click', previewBroadcast_);
-  send.addEventListener('click', sendBroadcast_);
-}
-function renderBroadcastInfo_(info){
-  var el = document.getElementById('broadcast-info');
-  if (!el || !info) return;
-  var q = (info.quota == null) ? '' : ' Quota diária restante: ' + info.quota + '.';
-  el.textContent = 'Destinatários com email: ' + info.n + '. Sem email (não recebem): ' + info.semEmail + '.' + q;
-}
-function previewBroadcast_(){
-  var assunto = document.getElementById('broadcast-assunto').value.trim();
-  var msg = document.getElementById('broadcast-msg').value.trim();
-  var err = document.getElementById('broadcast-error');
-  var box = document.getElementById('broadcast-preview-box');
-  err.textContent = '';
-  if (!assunto){ err.textContent = 'Escreve o assunto.'; return; }
-  if (!msg){ err.textContent = 'Escreve a mensagem.'; return; }
-  gsRun('api_adminPreviewBroadcast', adminState.token, assunto, msg).then(function(res){
-    if (!res.ok){ err.textContent = res.error === 'assunto_invalido' ? 'Assunto inválido.' : 'Mensagem inválida.'; return; }
-    showEmailHtmlPreview_(box, res.assunto, res.html);
-  }).catch(function(){ toast('Erro de ligação.'); });
-}
-function sendBroadcast_(){
-  var assunto = document.getElementById('broadcast-assunto').value.trim();
-  var msg = document.getElementById('broadcast-msg').value.trim();
-  var err = document.getElementById('broadcast-error');
-  var result = document.getElementById('broadcast-result');
-  var btn = document.getElementById('broadcast-send');
-  err.textContent = '';
-  result.textContent = '';
-  if (!assunto){ err.textContent = 'Escreve o assunto.'; return; }
-  if (!msg){ err.textContent = 'Escreve a mensagem.'; return; }
-  var info = EMAIL_MODELOS_CACHE && EMAIL_MODELOS_CACHE.broadcast;
-  var n = info ? info.n : 0;
-  if (!n){ err.textContent = 'Não há utilizadores ativos com email.'; return; }
-  if (!confirm('Enviar este email a ' + n + ' utilizador' + (n === 1 ? '' : 'es') + '?\n\nAssunto: ' + assunto)) return;
-  btn.disabled = true;
-  result.textContent = 'A enviar… pode demorar um pouco.';
-  gsRun('api_adminSendBroadcast', adminState.token, assunto, msg).then(function(res){
-    btn.disabled = false;
-    if (!res.ok){
-      var map = { assunto_invalido: 'Assunto inválido.', corpo_invalido: 'Mensagem inválida.', sem_destinatarios: 'Não há destinatários com email.' };
-      err.textContent = map[res.error] || 'Não foi possível enviar.';
-      result.textContent = '';
-      return;
-    }
-    var t = 'Enviados: ' + res.enviados + '. Falharam: ' + res.falhados + '.';
-    if (res.interrompidos) t += ' Não enviados (quota ou tempo): ' + res.interrompidos + '.';
-    if (res.semEmail) t += ' Sem email: ' + res.semEmail + '.';
-    if (res.quota != null) t += ' Quota restante: ' + res.quota + '.';
-    result.textContent = t;
-    toast(res.enviados ? 'Aviso enviado.' : 'Nenhum email enviado.');
-    renderNotifyLog_();
-    loadEmailModelos_();
-  }).catch(function(){ btn.disabled = false; result.textContent = ''; toast('Erro de ligação.'); });
-}
 
 /* ============================================================
    COMUNICADOS GERAIS POR E-MAIL
