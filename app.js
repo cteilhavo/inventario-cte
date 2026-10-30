@@ -789,6 +789,9 @@ function loadEmailModelos_() {
     if (!res.ok) return;
     var el = document.getElementById('email-modelos');
     var html = '<p class="muted" style="margin-top:0">Escolhe o modelo que vai ser enviado a cada tipo. O <em>Padrão</em> usa o email original do aplicativo.</p>' +
+      '<div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap">' +
+      '<button class="btn" id="eml-novo" type="button">➕ Criar novo modelo</button>' +
+      '</div>' +
       '<div class="grid2" style="margin-bottom:10px">' +
       tipoCard_('aluno', res.padroes.aluno) + tipoCard_('professor', res.padroes.professor) +
       '</div>';
@@ -851,7 +854,12 @@ function bindEmailModelosEvents_(el){
   if (target === 'email-modelo-editor'){
     openEmailModeloEditor_(b.dataset.tipo, b.dataset.id || '', b.dataset.duplicado === '1');
   }
-});
+  });
+  var btnNovo = document.getElementById('eml-novo');
+  if (btnNovo) btnNovo.addEventListener('click', function(){
+    openEmailModeloEditor_(EMAIL_MODELO_STATE.tipo || 'aluno', '', true);
+  });
+}
 }
 
 document.querySelectorAll('#admin-root .tab-btn').forEach(function(btn){
