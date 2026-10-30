@@ -3799,46 +3799,31 @@ function pcHora_(iso){
 }
 
 function pcPintarDots_(){
-  var wrap = document.getElementById('pc-pin-dots');
-  if (!wrap) return;
-  wrap.innerHTML = '';
-  var len = Math.max(pcState.pin.length, 4);
-  for (var i = 0; i < len; i++){
-    var d = document.createElement('span');
-    if (i < pcState.pin.length) d.classList.add('filled');
-    wrap.appendChild(d);
-  }
+  var i = document.getElementById('pc-pin-input');
+  if (i) i.value = pcState.pin;
 }
 
 function pcBloquearTeclado_(b){
   pcState.busy = b;
-  var kp = document.getElementById('pc-keypad');
-  if (kp) Array.prototype.forEach.call(kp.querySelectorAll('button'), function(x){ x.disabled = b; });
+  var i = document.getElementById('pc-pin-input'), bt = document.getElementById('pc-pin-submit');
+  if (i) i.disabled = b;
+  if (bt) bt.disabled = b;
+  if (!b && i){ try{ i.focus(); }catch(e){} }
   var h = document.getElementById('pc-pin-hint');
   if (h) h.textContent = b ? 'A verificar…' : 'Introduz o teu PIN para começar.';
 }
 
-function pcTecla_(k){
-  if (pcState.busy) return;
-  if (k === '⌫'){ pcState.pin = pcState.pin.slice(0, -1); pcPintarDots_(); return; }
-  if (k === 'OK'){ pcSubmeter_(); return; }
-  if (pcState.pin.length >= 8) return;
-  pcState.pin += k;
-  pcPintarDots_();
-}
-
 function pcBuildTeclado_(){
-  var kp = document.getElementById('pc-keypad');
-  if (!kp || kp.dataset.pronto) return;
-  var teclas = ['1','2','3','4','5','6','7','8','9','⌫','0','OK'];
-  teclas.forEach(function(k){
-    var b = document.createElement('button');
-    b.type = 'button'; b.textContent = k;
-    if (k === '⌫' || k === 'OK') b.classList.add('wide');
-    b.addEventListener('click', function(){ pcTecla_(k); });
-    kp.appendChild(b);
+  var i = document.getElementById('pc-pin-input');
+  if (!i || i.dataset.pronto) return;
+  i.addEventListener('input', function(){
+    var v = i.value.replace(/\D/g, '').slice(0, 8);
+    if (v !== i.value) i.value = v;
+    pcState.pin = v;
   });
-  kp.dataset.pronto = '1';
+  i.addEventListener('keydown', function(e){ if (e.key === 'Enter'){ e.preventDefault(); pcSubmeter_(); } });
+  document.getElementById('pc-pin-submit').addEventListener('click', pcSubmeter_);
+  i.dataset.pronto = '1';
 }
 
 function pcEstadoTexto_(info){
@@ -3894,6 +3879,7 @@ function pcBoot_(){
 
 function pcSubmeter_(){
   if (pcState.busy) return;
+  var pi = document.getElementById('pc-pin-input'); if (pi) pcState.pin = pi.value.replace(/\D/g, '');
   var erro = document.getElementById('pc-erro');
   erro.textContent = '';
   if (pcState.pin.length < 4){ erro.textContent = 'PIN demasiado curto.'; return; }
@@ -3950,37 +3936,21 @@ document.getElementById('pc-terminar').addEventListener('click', pcTerminar_);
 var salaState = { id: window.__SALA_ID__ || '', info: null, pin: '', token: '', busy: false, login: null };
 
 function salaPintarDots_(){
-  var wrap = document.getElementById('sala-pin-dots');
-  if (!wrap) return;
-  wrap.innerHTML = '';
-  var len = Math.max(salaState.pin.length, 4);
-  for (var i = 0; i < len; i++){
-    var d = document.createElement('span');
-    if (i < salaState.pin.length) d.classList.add('filled');
-    wrap.appendChild(d);
-  }
+  var i = document.getElementById('sala-pin-input');
+  if (i) i.value = salaState.pin;
 }
 
 function salaBuildTeclado_(){
-  var kp = document.getElementById('sala-keypad');
-  if (!kp || kp.dataset.pronto) return;
-  ['1','2','3','4','5','6','7','8','9','⌫','0','OK'].forEach(function(k){
-    var b = document.createElement('button');
-    b.type = 'button'; b.textContent = k;
-    if (k === '⌫' || k === 'OK') b.classList.add('wide');
-    b.addEventListener('click', function(){ salaTecla_(k); });
-    kp.appendChild(b);
+  var i = document.getElementById('sala-pin-input');
+  if (!i || i.dataset.pronto) return;
+  i.addEventListener('input', function(){
+    var v = i.value.replace(/\D/g, '').slice(0, 8);
+    if (v !== i.value) i.value = v;
+    salaState.pin = v;
   });
-  kp.dataset.pronto = '1';
-}
-
-function salaTecla_(k){
-  if (salaState.busy) return;
-  if (k === '⌫'){ salaState.pin = salaState.pin.slice(0, -1); salaPintarDots_(); return; }
-  if (k === 'OK'){ salaSubmeter_(); return; }
-  if (salaState.pin.length >= 8) return;
-  salaState.pin += k;
-  salaPintarDots_();
+  i.addEventListener('keydown', function(e){ if (e.key === 'Enter'){ e.preventDefault(); salaSubmeter_(); } });
+  document.getElementById('sala-pin-submit').addEventListener('click', salaSubmeter_);
+  i.dataset.pronto = '1';
 }
 
 var SALA_MOTIVOS_TXT = {
@@ -4045,6 +4015,7 @@ function salaBoot_(){
 
 function salaSubmeter_(){
   if (salaState.busy) return;
+  var si = document.getElementById('sala-pin-input'); if (si) salaState.pin = si.value.replace(/\D/g, '');
   var erro = document.getElementById('sala-erro');
   erro.textContent = '';
   if (salaState.pin.length < 4){ erro.textContent = 'PIN demasiado curto.'; return; }
