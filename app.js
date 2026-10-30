@@ -35,7 +35,7 @@ function _endPending(){
 // Ações rápidas do painel (apagar, criar, repor, ativar…) nunca mostram o ecrã de carregamento:
 // o ecrã atualiza logo e o pedido segue em segundo plano. Só as operações pesadas o mostram (se demorarem mais de 1 s).
 var QUIET_ = {
-  api_adminCreateCabinet: 1, api_adminDeleteCabinet: 1, api_adminCreateItem: 1, api_adminDeleteItem: 1, api_adminDeleteItems: 1,
+  api_adminCreateCabinet: 1, api_adminDeleteCabinet: 1, api_adminSetCabinetAtivo: 1, api_adminCreateItem: 1, api_adminDeleteItem: 1, api_adminDeleteItems: 1,
   api_adminRestock: 1, api_adminUpdateItemThreshold: 1, api_adminDeleteUser: 1, api_adminSetUserActive: 1,
   api_adminDeleteMovement: 1, api_adminUpdateMovementQty: 1, api_adminSetDamageStatus: 1, api_adminDecideRequest: 1,
   api_adminGetNotifyLog: 1, api_adminGetNotifySettings: 1, api_adminGetAutomation: 1,
@@ -199,7 +199,13 @@ function goPin(){
   renderPinDots();
   if (kioskState.cabLabel){ document.getElementById('pin-cabinet-label').textContent = kioskState.cabLabel; }
   else gsRun('api_getCabinetInfo', kioskState.cabinetId).then(function(info){
-    kioskState.cabLabel = info ? (info.nome + ' — ' + info.sala) : 'Valência';
+    if (!info){ // valência desativada ou inexistente: volta à lista das valências publicadas
+      kioskState.cabinetId = null; kioskState.cabLabel = null;
+      toast('Esta valência não está disponível.');
+      bootKiosk();
+      return;
+    }
+    kioskState.cabLabel = info.nome + ' — ' + info.sala;
     document.getElementById('pin-cabinet-label').textContent = kioskState.cabLabel;
   }).catch(function(){});
   show('scr-pin');
@@ -286,7 +292,13 @@ function startPinLock(seconds){
 function loadKioskData(){
   gsRun('api_kioskData', kioskState.token).then(function(data){
     resetDoneBtn_();
-    if (!data.ok){ toast('Não foi possível carregar a valência.'); setPinBusy_(false); goPin(); return; }
+    if (!data.ok){
+      if (data.error === 'armario_indisponivel'){ // a valência foi desativada durante a sessão
+        kioskState.cabinetId = null; kioskState.token = null; kioskState.cabLabel = null;
+        setPinBusy_(false); toast('Esta valência está desativada.'); bootKiosk(); return;
+      }
+      toast('Não foi possível carregar a valência.'); setPinBusy_(false); goPin(); return;
+    }
     kioskState.cabinet = data.cabinet;
     kioskData = data;
     document.getElementById('kiosk-cabinet-name').textContent = data.cabinet.nome + ' — ' + data.cabinet.sala;
@@ -1529,7 +1541,9 @@ function renderCabsTab(data){
     var tt = document.createElement('div');
     var h2 = document.createElement('h2'); h2.textContent = '🏫 ' + s.nome;
     var cnt = document.createElement('div'); cnt.className = 'muted';
-    cnt.textContent = cabsHere.length + ' valência' + (cabsHere.length === 1 ? '' : 's') + ' · ' + mobHere.length + ' linha' + (mobHere.length === 1 ? '' : 's') + ' de mobiliário';
+    var nInativas = cabsHere.filter(function(c){ return c.ativo === false; }).length;
+    cnt.textContent = cabsHere.length + ' valência' + (cabsHere.length === 1 ? '' : 's') + (nInativas ? ' (' + nInativas + ' desativada' + (nInativas === 1 ? '' : 's') + ')' : '') +
+      ' · ' + mobHere.length + ' linha' + (mobHere.length === 1 ? '' : 's') + ' de mobiliário';
     tt.appendChild(h2); tt.appendChild(cnt); head.appendChild(tt);
     var acts = document.createElement('div'); acts.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
     function sbtn(txt, cls, fn){ var b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + cls; b.textContent = txt; b.style.cssText = 'margin:0;padding:6px 12px;font-size:12px'; b.addEventListener('click', fn); acts.appendChild(b); }
@@ -1561,7 +1575,7 @@ function renderCabsTab(data){
     nb.addEventListener('click', function(){
       var nome = ni.value.trim(); if (!nome){ toast('Escreve o nome da valência.'); return; }
       var newId = newClientId_();
-      dashCache.cabinets.push({ id: newId, nome: nome, sala: s.nome, salaId: s.id });
+      dashCache.cabinets.push({ id: newId, nome: nome, sala: s.nome, salaId: s.id, ativo: true });
       renderAllAdminTabs(); toast('Valência criada em ' + s.nome + '.');
       bgRun_('api_adminCreateCabinet', adminState.token, nome, s.id, newId);
     });
@@ -1576,14 +1590,37 @@ function renderCabsTab(data){
     return grids[c.salaId] || grids['_'];
   }
   data.cabinets.forEach(function(c){
+    var inativa = c.ativo === false;
     var block = document.createElement('div');
-    block.className = 'cab-block';
+    block.className = 'cab-block' + (inativa ? ' cab-inactive' : '');
     var head = document.createElement('div');
     head.className = 'head';
     head.innerHTML = '<div><b></b><div class="muted"></div></div>';
     head.querySelector('b').textContent = c.nome;
-    head.querySelector('.muted').textContent = '📍 ' + c.sala;
+    if (inativa){
+      var badge = document.createElement('span');
+      badge.className = 'cab-badge';
+      badge.textContent = 'Desativada';
+      badge.title = 'Invisível para alunos, professores e quiosques. Só a administração a vê e pode alterá-la.';
+      head.querySelector('b').appendChild(document.createTextNode(' '));
+      head.querySelector('b').appendChild(badge);
+    }
+    head.querySelector('.muted').textContent = '📍 ' + c.sala + (inativa ? ' · invisível para os utilizadores' : '');
     var actions = document.createElement('div');
+    var visBtn = document.createElement('button');
+    visBtn.className = 'btn ' + (inativa ? '' : 'secondary');
+    visBtn.type = 'button'; visBtn.style.marginTop = '0';
+    visBtn.textContent = inativa ? 'Publicar' : 'Desativar';
+    visBtn.title = inativa
+      ? 'Voltar a mostrar a valência a alunos, professores e quiosques'
+      : 'Esconder a valência de todos (só a administração continua a vê-la e a poder alterá-la)';
+    visBtn.addEventListener('click', function(){
+      var publicar = c.ativo === false;
+      c.ativo = publicar;
+      renderAllAdminTabs();
+      toast(publicar ? 'Valência publicada.' : 'Valência desativada — só a administração a vê.');
+      bgRun_('api_adminSetCabinetAtivo', adminState.token, c.id, publicar);
+    });
     var qrBtn = document.createElement('button'); qrBtn.className='btn amber'; qrBtn.type='button'; qrBtn.style.marginTop='0'; qrBtn.textContent='▦ QR';
     var delBtn = document.createElement('button'); delBtn.className='btn danger'; delBtn.type='button'; delBtn.style.marginTop='0'; delBtn.textContent='Eliminar';
     delBtn.addEventListener('click', function(){
@@ -1598,7 +1635,7 @@ function renderCabsTab(data){
       toast('Valência eliminada.');
       bgRun_('api_adminDeleteCabinet', adminState.token, c.id);
     });
-    actions.appendChild(qrBtn); actions.appendChild(delBtn);
+    actions.appendChild(visBtn); actions.appendChild(qrBtn); actions.appendChild(delBtn);
     head.appendChild(actions);
     block.appendChild(head);
 
@@ -2970,7 +3007,7 @@ function gotoCandidates_(q){
   if (!f) return out;
   GOTO_PAGES.forEach(function(p){ if (fold(p[1]).indexOf(f) !== -1) out.push({ label: p[1], hint: p[2] ? 'submenu' : 'página', tab: p[0], sub: p[2] || '' }); });
   if (dashCache){
-    dashCache.cabinets.forEach(function(c){ if (fold(c.nome + ' ' + c.sala).indexOf(f) !== -1) out.push({ label: c.nome, hint: 'valência', tab: 'cabs', sub: 'valencias', search: c.nome }); });
+    dashCache.cabinets.forEach(function(c){ if (fold(c.nome + ' ' + c.sala).indexOf(f) !== -1) out.push({ label: c.nome, hint: c.ativo === false ? 'valência (desativada)' : 'valência', tab: 'cabs', sub: 'valencias', search: c.nome }); });
     dashCache.items.forEach(function(i){
       if (fold(i.nome).indexOf(f) === -1) return;
       var cab = dashCache.cabinets.filter(function(c){ return c.id === i.armarioId; })[0];

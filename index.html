@@ -140,6 +140,12 @@
   .grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 12px}
   @media (max-width:560px){.grid2,.grid3{grid-template-columns:1fr}}
   .cab-block{background:var(--surface-2); border:1px solid var(--border); border-radius:6px; padding:12px 14px; margin:12px 0}
+  /* valência desativada: continua visível e editável na administração, mas mais apagada */
+  .cab-block.cab-inactive{border-style:dashed; opacity:.72}
+  .cab-block.cab-inactive .head b{color:var(--ink-soft)}
+  .cab-badge{display:inline-block; vertical-align:middle; font-size:11px; font-weight:700; padding:2px 9px; border-radius:99px;
+    background:color-mix(in srgb, var(--danger) 14%, transparent); color:var(--danger);
+    border:1px solid color-mix(in srgb, var(--danger) 35%, transparent)}
   .cab-block .head{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px}
   .qr-box{display:none; text-align:center; margin-top:10px; background:#fff; padding:14px; border-radius:6px}
   .qr-box.open{display:block}
