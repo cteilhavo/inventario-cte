@@ -770,95 +770,88 @@ function enterDashboard(){
 /* ==================== MODELOS DE EMAIL DO PIN (admin) ==================== */
 
 var EMAIL_MODELO_STATE = { tipo: 'aluno', id: '' };
-var EMAIL_MODELO_EDITOR_OPEN = false;
+var EMAIL_MODELOS_CACHE = null;
 
 function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function emailModeloCell_(m){ return esc(m.nome.length > 24 ? m.nome.slice(0,24)+'…' : m.nome); }
 function emailModeloBodyPre_(corpo){
-  var b = esc(String(corpo || '').replace(/\r/g,'')).split('\n');
-  return b.map(function(l){ return l.length > 30 ? l.slice(0,30)+'…' : l; }).join(' | ');
+  var t = String(corpo || '').replace(/\s+/g,' ').trim();
+  return esc(t.length > 90 ? t.slice(0,90)+'…' : t || '(só o envelope fixo — sem mensagem extra)');
 }
 
 function initEmailModelos_() {
   if (!window.__IS_ADMIN__) return;
   loadEmailModelos_();
+  bindBroadcastOnce_();
 }
 
 function loadEmailModelos_() {
   gsRun('api_adminGetEmailModelos', adminState.token).then(function(res){
     if (!res.ok) return;
-    var el = document.getElementById('email-modelos');
-    var html = '<p class="muted" style="margin-top:0">Escolhe o modelo que vai ser enviado a cada tipo. O <em>Padrão</em> usa o email original do aplicativo.</p>' +
-      '<div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap">' +
-      '<button class="btn" id="eml-novo" type="button">➕ Criar novo modelo</button>' +
-      '</div>' +
-      '<div class="grid2" style="margin-bottom:10px">' +
-      tipoCard_('aluno', res.padroes.aluno) + tipoCard_('professor', res.padroes.professor) +
-      '</div>';
-    res.modelos.forEach(function(m){
-      var sel = m.tipo === 'professor' ? res.selProfessor : res.selAluno;
-      var ativo = (m.id === sel);
-      html += '<div class="card" style="padding:12px 14px">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">' +
-        '<strong>' + esc(m.nome) + '</strong>' +
-        '<span class="tag" style="font-size:11px">' + (ativo ? '<b>Em uso</b>' : 'selecionado') + '</span>' +
-        '</div>' +
-        '<div class="muted" style="font-size:12px;margin-top:4px;word-break:break-all">' + emailModeloBodyPre_(m.corpoVariavel || m.corpo) + '</div>' +
-        '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">' +
-        modeloBtn_('editar', m.tipo, m.id, false) +
-        modeloBtn_('duplicar', m.tipo, m.id, true) +
-        modeloBtn_('eliminar', m.tipo, m.id, false) +
-        modeloBtn_('preview', m.tipo, m.id, false) +
-        modeloBtn_('selecionar', m.tipo, 'padrao', false) +
-        '</div></div>';
-    });
-    el.innerHTML = html;
-    bindEmailModelosEvents_(el);
+    EMAIL_MODELOS_CACHE = res;
+    renderBroadcastInfo_(res.broadcast);
+    renderEmailModelos_(res);
   }).catch(function(){ toast('Erro ao carregar modelos.'); });
 }
 
-function tipoCard_(tipo, padrao) {
-  var typeLabel = tipo === 'professor' ? 'Professores' : 'Alunos';
-  var bodyPreview = padrao ? emailModeloBodyPre_(padrao.corpoPadrao || padrao.corpo) : '';
-  return '<div class="card" style="padding:12px 14px;flex:1;min-width:220px">' +
-    '<div style="display:flex;align-items:center;justify-content:space-between"><strong>' + typeLabel + '</strong>' +
-    '<span class="tag" style="font-size:11px">padrão</span></div>' +
-    '<p class="muted" style="font-size:12px;margin:6px 0 0 0;word-break:break-all">' + bodyPreview + '</p>' +
-    '<div style="margin-top:8px"><button class="btn secondary small" data-act="select" data-tipo="' + tipo + '">Usar este como padrão</button></div>' +
+function renderEmailModelos_(res){
+  var el = document.getElementById('email-modelos');
+  var env = res.envelope || {};
+  var html = '<div style="padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);margin-bottom:14px">' +
+    '<p class="muted" style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Envelope fixo (todos os emails de PIN)</p>' +
+    '<p style="margin:0 0 8px"><b>Assunto:</b> ' + esc(env.assunto || '') + '</p>' +
+    '<pre style="white-space:pre-wrap;font:13px/1.5 inherit;margin:0 0 10px">' + esc(env.intro || '') + '</pre>' +
+    '<pre style="white-space:pre-wrap;font:13px/1.5 inherit;margin:0;color:var(--ink-faint)">' + esc(env.assinatura || '') + '</pre>' +
+    '</div>' +
+    '<div class="grid2">' +
+    emailTipoCol_('aluno', 'Alunos', res) +
+    emailTipoCol_('professor', 'Professores', res) +
     '</div>';
+  el.innerHTML = html;
+  el.querySelectorAll('[data-em-sel]').forEach(function(sel){
+    sel.addEventListener('change', function(){ selectEmailModelo_(sel.getAttribute('data-em-sel'), sel.value); });
+  });
+  el.querySelectorAll('[data-em-novo]').forEach(function(b){
+    b.addEventListener('click', function(){ openEmailModeloEditor_(b.getAttribute('data-em-novo'), '', true); });
+  });
+  el.querySelectorAll('[data-em-act]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var act = b.getAttribute('data-em-act'), tipo = b.getAttribute('data-tipo'), id = b.getAttribute('data-id');
+      if (act === 'editar') openEmailModeloEditor_(tipo, id, false);
+      else if (act === 'eliminar') confirmarDelEmailModelo_(id, tipo);
+      else if (act === 'preview') previewEmailModeloId_(tipo, id);
+    });
+  });
 }
 
-function modeloBtn_(act, tipo, id, duplicado){
-  var target = (act === 'eliminar') ? 'email-modelo-editor-danger' : 'email-modelo-editor';
-  return '<button class="btn small" data-act="' + act + '" data-target="' + target + '" data-tipo="' + tipo + '" data-id="' + id + '" data-duplicado="' + (!!duplicado ? 1 : 0) + '" type="button">' + (act === 'eliminar' ? '🗑️' : act === 'preview' ? '👁️' : act === 'selectar' ? '↺' : '🎛️') + ' ' + {
-    editar: 'Editar', duplicar: 'Duplicar', eliminar: 'Eliminar', preview: 'Pré-visualizar', selectar: 'Usar padrão'
-  }[act] + '</button>';
-}
-function bindEmailModelosEvents_(el){
-  el.addEventListener('click', function(e){
-  var b = e.target.closest('button[data-act]');
-  if (!b) return;
-  var act = b.dataset.act;
-  if (act === 'select' || act === 'selecionar'){ selectEmailModelo_(b.dataset.tipo, 'padrao'); return; }
-  var target = b.dataset.target;
-  var editor = document.getElementById('email-modelo-editor');
-  editor.classList.remove('hidden');
-  editor.style.borderTop = 'none';
-  editor.innerHTML = '';
-  if (target === 'email-modelo-editor-danger'){
-    editor.innerHTML = '<p class="muted" style="margin:0 0 10px 0">Eliminar este modelo? O modelo que estiver seleccionado para o tipo correspondente volta ao <em>Padrão</em>.</p><div style="display:flex;gap:8px"><button class="btn danger" id="eml-confirm-del" type="button">Eliminar</button><button class="btn secondary" id="eml-cancel-del" type="button">Cancelar</button></div>';
-    editor.querySelector('#eml-confirm-del').addEventListener('click', function(){ delEmailModelo_(b.dataset.id, b.dataset.tipo); });
-    editor.querySelector('#eml-cancel-del').addEventListener('click', closeEditor_);
-    return;
-  }
-  if (target === 'email-modelo-editor'){
-    openEmailModeloEditor_(b.dataset.tipo, b.dataset.id || '', b.dataset.duplicado === '1');
-  }
+function emailTipoCol_(tipo, titulo, res){
+  var sel = tipo === 'professor' ? res.selProfessor : res.selAluno;
+  var modelos = (res.modelos || []).filter(function(m){ return m.tipo === tipo; });
+  var opts = '<option value="padrao"' + (sel === 'padrao' ? ' selected' : '') + '>Padrão</option>';
+  modelos.forEach(function(m){
+    opts += '<option value="' + esc(m.id) + '"' + (m.id === sel ? ' selected' : '') + '>' + esc(m.nome) + '</option>';
   });
-  var btnNovo = document.getElementById('eml-novo');
-  if (btnNovo) btnNovo.addEventListener('click', function(){
-    openEmailModeloEditor_(EMAIL_MODELO_STATE.tipo || 'aluno', '', true);
+  var lista = '';
+  if (!modelos.length) lista = '<p class="muted" style="font-size:12px;margin:8px 0 0">Ainda não há modelos extra. O Padrão é o que está em uso.</p>';
+  modelos.forEach(function(m){
+    lista += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">' +
+      '<strong>' + esc(m.nome) + '</strong>' +
+      (m.id === sel ? '<span class="tag" style="margin:0">em uso</span>' : '') +
+      '</div>' +
+      '<p class="muted" style="font-size:12px;margin:4px 0 8px">' + emailModeloBodyPre_(m.corpoVariavel || m.corpo) + '</p>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+      '<button class="btn secondary" type="button" style="margin-top:0" data-em-act="editar" data-tipo="' + tipo + '" data-id="' + esc(m.id) + '">Editar</button>' +
+      '<button class="btn secondary" type="button" style="margin-top:0" data-em-act="preview" data-tipo="' + tipo + '" data-id="' + esc(m.id) + '">Pré-visualizar</button>' +
+      '<button class="btn danger" type="button" style="margin-top:0" data-em-act="eliminar" data-tipo="' + tipo + '" data-id="' + esc(m.id) + '">Eliminar</button>' +
+      '</div></div>';
   });
+  return '<div class="card" style="padding:12px 14px">' +
+    '<strong>' + titulo + '</strong>' +
+    '<label style="margin-top:10px">Modelo em uso (mensagem extra)</label>' +
+    '<select data-em-sel="' + tipo + '">' + opts + '</select>' +
+    '<button class="btn" type="button" data-em-novo="' + tipo + '">Criar modelo para ' + (tipo === 'professor' ? 'professores' : 'alunos') + '</button>' +
+    lista +
+    '</div>';
 }
 
 document.querySelectorAll('#admin-root .tab-btn').forEach(function(btn){
@@ -4282,116 +4275,81 @@ if (window.__IS_ADMIN__){
 }
 
 
-function openEmailModeloEditor_(tipo, id, duplicado){
+function openEmailModeloEditor_(tipo, id, isNew){
+  var cache = EMAIL_MODELOS_CACHE;
+  if (!cache){ toast('Ainda a carregar os modelos.'); return; }
   EMAIL_MODELO_STATE.tipo = tipo;
-  EMAIL_MODELO_STATE.id = id || '';
-  EMAIL_MODELO_STATE.isNew = !!duplicado;
+  EMAIL_MODELO_STATE.id = isNew ? '' : (id || '');
+  var env = cache.envelope || {};
+  var nome = '';
+  var corpo = cache.padroes && cache.padroes[tipo] ? cache.padroes[tipo] : '';
+  if (!isNew && id){
+    var m = (cache.modelos || []).find(function(x){ return x.id === id; });
+    if (!m){ toast('Modelo não encontrado.'); return; }
+    nome = m.nome;
+    corpo = m.corpoVariavel || m.corpo || '';
+  } else {
+    nome = tipo === 'professor' ? 'Novo modelo (professores)' : 'Novo modelo (alunos)';
+  }
   var el = document.getElementById('email-modelo-editor');
   el.classList.remove('hidden');
-  el.style.borderTop = 'none';
-  el.innerHTML = '';
-  gsRun('api_adminGetEmailModelos', adminState.token).then(function(res){
-    if (!res.ok) return;
-    if (EMAIL_MODELO_STATE.isNew) {
-      openEditorForm_(tipo, null, null, res.padroes);
-      return;
-    }
-    if (id === 'padrao') {
-      openEditorForm_(tipo + ' (padrão)', res.padroes[tipo].assunto, res.padroes[tipo].corpoPadrao || res.padroes[tipo].corpo, res.padroes);
-      return;
-    }
-    var m = res.modelos.find(function(x){ return x.tipo === tipo && x.id === id; });
-    if (!m) return toast('Modelo não encontrado.');
-    openEditorForm_(m.nome, m.assunto, m.corpoVariavel || m.corpo, res.padroes);
-  }).catch(function(){ toast('Erro de ligação.'); });
-}
-function openEditorForm_(nome, assunto, corpo, padroes){
-  var partes = separarPartesCorpo_(corpo || '');
-  var el = document.getElementById('email-modelo-editor');
-  el.innerHTML = '<div class="card" style="padding:14px">' +
-    '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">' +
-    '<strong style="font-size:16px">' + esc(nome || 'Novo modelo') + '</strong>' +
-    '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
-    '<button class="btn secondary small" id="eml-cancel" type="button">Cancelar</button>' +
-    '</div></div>' +
-    '<div class="space-between" style="gap:10px;flex-wrap:wrap;margin-top:10px">' +
-    '<div style="flex:1;min-width:240px"><label>Nome do modelo</label><input class="w-full" id="eml-nome" placeholder="ex.: Manto de natal"/></div>' +
-    '<div style="flex:1;min-width:240px"><label>Assunto</label><input class="w-full" id="eml-assunto" placeholder="ex.: 🔑 O teu acesso ao Inventário CTE"/></div>' +
-    '<div style="flex:1;min-width:240px"><label style="color:#777;font-size:12px">Introdução (fixa — nunca altera)</label><textarea id="eml-intro" class="w-full" rows="4" readonly style="background:#F0F0EC;color:#5E6574">' + esc(partes.intro) + '</textarea><p class="muted" style="font-size:11px;margin-top:4px">Texto fixo que aparece no topo de todos os emails.</p></div>' +
-    '<div style="flex:1;min-width:240px"><label>Mensagem (editável — é aqui que alteras)</label><textarea id="eml-corpo" class="w-full" rows="12" placeholder="Olá, {{nome}}!&#10;&#10;Aqui está o teu PIN: {{pin}}&#10;&#10;O PIN é pessoal e intransmissível.">' + esc(partes.corpo) + '</textarea><p class="muted" style="font-size:11px;margin-top:4px">Use {{nome}}, {{pin}}, {{link}} e {{perfil}}. Linhas a começar por "- " = lista; "1. " = numerada; **negrito**.</p></div>' +
-    '<div style="flex:1;min-width:240px"><label style="color:#777;font-size:12px">Assinatura (fixa — nunca altera)</label><textarea id="eml-assinatura" class="w-full" rows="4" readonly style="background:#F0F0EC;color:#5E6574">' + esc(partes.assinatura) + '</textarea><p class="muted" style="font-size:11px;margin-top:4px">Texto fixo que aparece no final de todos os emails.</p></div>' +
+  el.innerHTML = '<div class="card" style="padding:14px;margin-top:12px">' +
+    '<strong>' + (isNew ? 'Novo modelo' : 'Editar modelo') + ' — ' + (tipo === 'professor' ? 'professores' : 'alunos') + '</strong>' +
+    '<label>Nome do modelo</label>' +
+    '<input id="eml-nome" maxlength="60" placeholder="ex.: Fase sala C.0.07">' +
+    '<p class="muted" style="font-size:12px;margin:12px 0 4px">Assunto (fixo)</p>' +
+    '<div style="padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2)">' + esc(env.assunto || '') + '</div>' +
+    '<p class="muted" style="font-size:12px;margin:12px 0 4px">Introdução (fixa — inclui o PIN)</p>' +
+    '<pre style="white-space:pre-wrap;font:13px/1.5 inherit;margin:0;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2)">' + esc(env.intro || '') + '</pre>' +
+    '<label>Mensagem extra (a única parte editável)</label>' +
+    '<textarea id="eml-corpo" rows="12" placeholder="Texto a seguir ao PIN. Podes deixar vazio."></textarea>' +
+    '<p class="muted" style="font-size:12px">O PIN já vai na introdução. Aqui pões só o que muda (ex.: «ainda só está na sala C.0.07»).</p>' +
+    '<p class="muted" style="font-size:12px;margin:12px 0 4px">Assinatura (fixa)</p>' +
+    '<pre style="white-space:pre-wrap;font:13px/1.5 inherit;margin:0;padding:10px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2)">' + esc(env.assinatura || '') + '</pre>' +
+    '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">' +
+    '<button class="btn" id="eml-salvar" type="button">Guardar</button>' +
+    '<button class="btn secondary" id="eml-preview" type="button">Pré-visualizar</button>' +
+    '<button class="btn secondary" id="eml-cancel" type="button">Cancelar</button>' +
     '</div>' +
-    '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">' +
-    '<button class="btn" id="eml-salvar" type="button">💾 Guardar modelo</button>' +
-    '<button class="btn secondary" id="eml-preview" type="button">👁️ Pré-visualizar</button>' +
-    '<button class="btn secondary" id="eml-voltar" type="button">Cancelar</button>' +
-    '</div>' +
-    '<p class="muted" style="font-size:12px;margin-top:10px">Variáveis: <code>{{nome}}</code>, <code>{{pin}}</code>, <code>{{link}}</code>, <code>{{perfil}}</code>. O PIN é sempre substituído pelo valor do registo de cada utilizador.</p>' +
+    '<div id="eml-preview-box" class="hidden" style="margin-top:12px;padding:14px;border:1px solid var(--border);border-radius:8px;background:#fff;color:#1a1a1a"></div>' +
     '</div>';
-  document.getElementById('eml-nome').value = nome || '';
-  document.getElementById('eml-nome').value = nome || '';
-  document.getElementById('eml-assunto').value = assunto || '';
-  document.getElementById('eml-corpo').value = partes.corpo;
-  if (padroes) {
-    document.getElementById('eml-nome').placeholder = (nome || 'Novo modelo') + ' — baseia-te no padrão';
-  }
-  document.getElementById('eml-salvar').addEventListener('click', feedEditorAndSave_);
-  document.getElementById('eml-preview').addEventListener('click', function(){ previewEmailModelo_(EMAIL_MODELO_STATE.tipo, EMAIL_MODELO_STATE.id); });
-  document.getElementById('eml-voltar').addEventListener('click', closeEditor_);
+  document.getElementById('eml-nome').value = nome;
+  document.getElementById('eml-corpo').value = corpo;
+  document.getElementById('eml-salvar').addEventListener('click', saveEmailModelo_);
+  document.getElementById('eml-preview').addEventListener('click', previewEmailModeloEditor_);
   document.getElementById('eml-cancel').addEventListener('click', closeEditor_);
   document.getElementById('eml-corpo').focus();
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-function separarPartesCorpo_(texto){
-  var t = texto || '';
-  var intro = '', corpo = '', assinatura = '';
-  var mIntro = t.match(/^([\s\S]*?)\n\n--\n/);
-  if (mIntro){
-    intro = mIntro[1];
-    t = t.slice(mIntro[0].length);
-  }
-  var mAss = t.match(/\n--\n([\s\S]*)$/);
-  if (mAss){
-    assinatura = mAss[1];
-    t = t.slice(0, t.length - mAss[0].length);
-  }
-  corpo = t.trim();
-  return { intro: intro, corpo: corpo, assinatura: assinatura };
-}
-function feedEditor_(){
-  EMAIL_MODELO_STATE.val = {
+function emailModeloPayload_(){
+  return {
     nome: document.getElementById('eml-nome').value.trim(),
-    assunto: document.getElementById('eml-assunto').value.trim(),
     tipo: EMAIL_MODELO_STATE.tipo,
     id: EMAIL_MODELO_STATE.id || undefined,
-    corpoVariavel: document.getElementById('eml-corpo').value,
-    introFixa: document.getElementById('eml-intro').value,
-    assinaturaFixa: document.getElementById('eml-assinatura').value
+    corpoVariavel: document.getElementById('eml-corpo').value
   };
-}
-function feedEditorAndSave_(){
-  feedEditor_();
-  saveEmailModelo_();
 }
 function saveEmailModelo_(){
   var btn = document.getElementById('eml-salvar');
-  if (!btn) return;
+  var payload = emailModeloPayload_();
+  if (!payload.nome){ toast('Dá um nome ao modelo.'); return; }
   btn.disabled = true;
-  gsRun('api_adminSaveEmailModelo', adminState.token, EMAIL_MODELO_STATE.val).then(function(res){
+  gsRun('api_adminSaveEmailModelo', adminState.token, payload).then(function(res){
     btn.disabled = false;
     if (!res.ok){
-      toast('Erro: ' + (res.error || 'desconhecido'));
-      if (res.error === 'sem_pin') toast('O corpo do modelo deve conter {{pin}}.');
+      var msg = { nome_invalido: 'Nome inválido.', corpo_invalido: 'A mensagem é demasiado longa.', limite_modelos: 'Atingiste o limite de modelos.', tipo_invalido: 'Tipo inválido.' };
+      toast(msg[res.error] || ('Não foi possível guardar' + (res.error ? ' (' + res.error + ')' : '.') ));
       return;
     }
     closeEditor_();
     loadEmailModelos_();
     toast('Modelo guardado.');
-  }).catch(function(){ toast('Erro de ligação.'); });
+  }).catch(function(){ btn.disabled = false; toast('Erro de ligação.'); });
 }
-function delEmailModelo_(id, tipo){
-  if (!confirm('Eliminar este modelo? O modelo seleccionado para o tipo ' + tipo + ' volta ao padrão.')) return;
+function confirmarDelEmailModelo_(id, tipo){
+  if (!confirm('Eliminar este modelo? Se estiver em uso, volta ao Padrão.')) return;
   gsRun('api_adminDeleteEmailModelo', adminState.token, id).then(function(res){
-    if (!res.ok){ toast('Erro: ' + (res.error || '')); return; }
+    if (!res.ok){ toast('Não foi possível eliminar.'); return; }
     closeEditor_();
     loadEmailModelos_();
     toast('Modelo eliminado.');
@@ -4399,25 +4357,31 @@ function delEmailModelo_(id, tipo){
 }
 function selectEmailModelo_(tipo, id){
   gsRun('api_adminSelectEmailModelo', adminState.token, tipo, id).then(function(res){
-    if (!res.ok){ toast('Erro: ' + (res.error || '')); return; }
+    if (!res.ok){ toast('Não foi possível escolher o modelo.'); return; }
     loadEmailModelos_();
-    toast('Modelo seleccionado.');
+    toast('Modelo em uso atualizado.');
   }).catch(function(){ toast('Erro de ligação.'); });
 }
-function previewEmailModelo_(tipo, id){
-  var modelo = EMAIL_MODELO_STATE.val;
-  if (!modelo || !modelo.nome) return;
-  gsRun('api_adminPreviewEmailModelo', adminState.token, modelo).then(function(res){
-    if (!res.ok){ toast('Erro: ' + (res.error || '')); return; }
-    var win = window.open('', '_blank');
-    if (!win){ toast('Abra o email no seu navegador para ver a pré-visualização.'); return; }
-    win.document.write('<!doctype html><html><head><meta charset="utf-8"><style>' +
-      'body{font:15px system-ui,Arial,sans-serif;color:#1a1a1a;line-height:1.55;padding:18px}' +
-      'p{margin:0 0 14px 0} b{color:#1F3A93} code{background:#F4F4F1;padding:1px 4px}' +
-      '</style></head><body>' + res.html + '<p><b>Assunto:</b> ' + res.assunto + '</p>' +
-      (res.semPin ? '<p class="muted" style="color:#b00"><b>Atenção:</b> o corpo do modelo não contém {{pin}} — o email nunca enviará o PIN.</p>' : '') +
-      '</body></html>');
-    win.document.close();
+function showEmailHtmlPreview_(box, assunto, html){
+  box.classList.remove('hidden');
+  box.innerHTML = '<p style="margin:0 0 10px;font-size:13px;color:#555"><b>Assunto:</b> ' + esc(assunto) + '</p>' + html;
+}
+function previewEmailModeloEditor_(){
+  var box = document.getElementById('eml-preview-box');
+  gsRun('api_adminPreviewEmailModelo', adminState.token, emailModeloPayload_()).then(function(res){
+    if (!res.ok){ toast('Não foi possível pré-visualizar.'); return; }
+    showEmailHtmlPreview_(box, res.assunto, res.html);
+  }).catch(function(){ toast('Erro de ligação.'); });
+}
+function previewEmailModeloId_(tipo, id){
+  var cache = EMAIL_MODELOS_CACHE || {};
+  var m = (cache.modelos || []).find(function(x){ return x.id === id; });
+  if (!m){ toast('Modelo não encontrado.'); return; }
+  gsRun('api_adminPreviewEmailModelo', adminState.token, { tipo: tipo, corpoVariavel: m.corpoVariavel || m.corpo || '' }).then(function(res){
+    if (!res.ok){ toast('Não foi possível pré-visualizar.'); return; }
+    openEmailModeloEditor_(tipo, id, false);
+    var box = document.getElementById('eml-preview-box');
+    if (box) showEmailHtmlPreview_(box, res.assunto, res.html);
   }).catch(function(){ toast('Erro de ligação.'); });
 }
 function closeEditor_(){
@@ -4425,8 +4389,69 @@ function closeEditor_(){
   el.classList.add('hidden');
   el.innerHTML = '';
 }
-function dangerPane_(){
-  return '<p class="muted" style="margin:0 0 10px 0">Eliminar este modelo não pode ser desfeito. O modelo que estiver seleccionado para o tipo correspondente volta ao <em>Padrão</em>.</p>';
+
+var _broadcastBound = false;
+function bindBroadcastOnce_(){
+  if (_broadcastBound) return;
+  var send = document.getElementById('broadcast-send');
+  var prev = document.getElementById('broadcast-preview');
+  if (!send || !prev) return;
+  _broadcastBound = true;
+  prev.addEventListener('click', previewBroadcast_);
+  send.addEventListener('click', sendBroadcast_);
+}
+function renderBroadcastInfo_(info){
+  var el = document.getElementById('broadcast-info');
+  if (!el || !info) return;
+  var q = (info.quota == null) ? '' : ' Quota diária restante: ' + info.quota + '.';
+  el.textContent = 'Destinatários com email: ' + info.n + '. Sem email (não recebem): ' + info.semEmail + '.' + q;
+}
+function previewBroadcast_(){
+  var assunto = document.getElementById('broadcast-assunto').value.trim();
+  var msg = document.getElementById('broadcast-msg').value.trim();
+  var err = document.getElementById('broadcast-error');
+  var box = document.getElementById('broadcast-preview-box');
+  err.textContent = '';
+  if (!assunto){ err.textContent = 'Escreve o assunto.'; return; }
+  if (!msg){ err.textContent = 'Escreve a mensagem.'; return; }
+  gsRun('api_adminPreviewBroadcast', adminState.token, assunto, msg).then(function(res){
+    if (!res.ok){ err.textContent = res.error === 'assunto_invalido' ? 'Assunto inválido.' : 'Mensagem inválida.'; return; }
+    showEmailHtmlPreview_(box, res.assunto, res.html);
+  }).catch(function(){ toast('Erro de ligação.'); });
+}
+function sendBroadcast_(){
+  var assunto = document.getElementById('broadcast-assunto').value.trim();
+  var msg = document.getElementById('broadcast-msg').value.trim();
+  var err = document.getElementById('broadcast-error');
+  var result = document.getElementById('broadcast-result');
+  var btn = document.getElementById('broadcast-send');
+  err.textContent = '';
+  result.textContent = '';
+  if (!assunto){ err.textContent = 'Escreve o assunto.'; return; }
+  if (!msg){ err.textContent = 'Escreve a mensagem.'; return; }
+  var info = EMAIL_MODELOS_CACHE && EMAIL_MODELOS_CACHE.broadcast;
+  var n = info ? info.n : 0;
+  if (!n){ err.textContent = 'Não há utilizadores ativos com email.'; return; }
+  if (!confirm('Enviar este email a ' + n + ' utilizador' + (n === 1 ? '' : 'es') + '?\n\nAssunto: ' + assunto)) return;
+  btn.disabled = true;
+  result.textContent = 'A enviar… pode demorar um pouco.';
+  gsRun('api_adminSendBroadcast', adminState.token, assunto, msg).then(function(res){
+    btn.disabled = false;
+    if (!res.ok){
+      var map = { assunto_invalido: 'Assunto inválido.', corpo_invalido: 'Mensagem inválida.', sem_destinatarios: 'Não há destinatários com email.' };
+      err.textContent = map[res.error] || 'Não foi possível enviar.';
+      result.textContent = '';
+      return;
+    }
+    var t = 'Enviados: ' + res.enviados + '. Falharam: ' + res.falhados + '.';
+    if (res.interrompidos) t += ' Não enviados (quota ou tempo): ' + res.interrompidos + '.';
+    if (res.semEmail) t += ' Sem email: ' + res.semEmail + '.';
+    if (res.quota != null) t += ' Quota restante: ' + res.quota + '.';
+    result.textContent = t;
+    toast(res.enviados ? 'Aviso enviado.' : 'Nenhum email enviado.');
+    renderNotifyLog_();
+    loadEmailModelos_();
+  }).catch(function(){ btn.disabled = false; result.textContent = ''; toast('Erro de ligação.'); });
 }
 
 })();
