@@ -247,6 +247,14 @@
   .sala-new input{flex:1; margin:0}
   .sala-new .btn{margin:0}
   .mob-sala-row td{background:var(--mint-dim); color:var(--mint); font-weight:700; border-bottom:0}
+  .mob-actions{display:flex; gap:6px; justify-content:flex-end; align-items:center}
+  /* colunas estreitas para os controlos; o nome e as notas absorvem o espaço restante */
+  #mob-table th:nth-child(2), #mob-table td:nth-child(2){width:84px}
+  #mob-table th:nth-child(3), #mob-table td:nth-child(3){width:170px}
+  #mob-table th:nth-child(5), #mob-table td:nth-child(5){width:84px; white-space:nowrap}
+  .mob-edit-card{width:min(460px,100%)}
+  .mob-edit-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:16px}
+  .mob-edit-actions .btn{margin-top:0}
 
   @media (min-width:1000px){
     table{font-size:13.5px}
@@ -1157,7 +1165,7 @@
         </div>
         <div class="muted" id="mob-summary" style="margin-top:8px"></div>
         <button class="btn secondary" id="mob-csv" type="button">⬇ Exportar CSV</button>
-        <div class="table-wrap"><table id="mob-table"><thead><tr><th>Sala</th><th>Móvel / equipamento</th><th>Qtd.</th><th>Estado</th><th>Notas</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="table-wrap"><table id="mob-table"><thead><tr><th scope="col">Móvel / equipamento</th><th scope="col">Qtd.</th><th scope="col">Estado</th><th scope="col">Notas</th><th scope="col" aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
       </div>
     </div>
 
@@ -1493,6 +1501,33 @@
     </div>
     <div class="em-modal-body">
       <div class="em-mail-paper" id="em-preview-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Editar mobiliário: nome, sala e notas (quantidade e estado editam-se na lista) -->
+<div id="mob-edit-modal" class="em-modal hidden" role="dialog" aria-modal="true" aria-labelledby="mob-edit-title">
+  <div class="em-modal-card mob-edit-card" role="document">
+    <div class="em-modal-head">
+      <div>
+        <span class="em-modal-kicker">Inventário fixo</span>
+        <h3 id="mob-edit-title">Editar móvel</h3>
+        <p class="em-hint" id="mob-edit-sub">A quantidade e o estado editam-se diretamente na lista.</p>
+      </div>
+      <button class="icon-btn" id="mob-edit-close" type="button" aria-label="Fechar" title="Fechar">✕</button>
+    </div>
+    <div class="em-modal-body">
+      <label for="mob-edit-sala">Sala</label>
+      <select id="mob-edit-sala"></select>
+      <label for="mob-edit-nome">Móvel / equipamento</label>
+      <input type="text" id="mob-edit-nome" maxlength="150" autocomplete="off">
+      <label for="mob-edit-notas">Notas (opcional)</label>
+      <input type="text" id="mob-edit-notas" maxlength="300" autocomplete="off">
+      <div class="error" id="mob-edit-error"></div>
+      <div class="mob-edit-actions">
+        <button class="btn secondary" id="mob-edit-cancel" type="button">Cancelar</button>
+        <button class="btn" id="mob-edit-save" type="button">Guardar</button>
+      </div>
     </div>
   </div>
 </div>

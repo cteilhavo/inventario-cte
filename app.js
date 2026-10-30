@@ -4276,7 +4276,7 @@ function renderMobTab_(){
     tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td>';
     if (m.estado === 'mau') tr.className = 'low';
     tr.children[0].textContent = m.nome;
-    var qi = document.createElement('input'); qi.type = 'number'; qi.min = '1'; qi.step = '1'; qi.value = m.quantidade; qi.style.cssText = 'width:80px;margin:0';
+    var qi = document.createElement('input'); qi.type = 'number'; qi.min = '1'; qi.step = '1'; qi.value = m.quantidade; qi.style.cssText = 'width:70px;margin:0';
     qi.setAttribute('aria-label', 'Quantidade de ' + m.nome);
     qi.addEventListener('change', function(){
       var n = Math.floor(Number(qi.value));
@@ -4284,40 +4284,83 @@ function renderMobTab_(){
       m.quantidade = n; renderAllAdminTabs(); toast('Quantidade atualizada.'); mobSave_(m);
     });
     tr.children[1].appendChild(qi);
-    var sel = document.createElement('select'); sel.style.cssText = 'margin:0;min-width:130px';
+    var sel = document.createElement('select'); sel.style.cssText = 'margin:0;width:auto;min-width:130px';
     Object.keys(MOB_LABELS).forEach(function(k){ var o = document.createElement('option'); o.value = k; o.textContent = MOB_LABELS[k]; sel.appendChild(o); });
     sel.value = m.estado;
     sel.addEventListener('change', function(){ m.estado = sel.value; renderAllAdminTabs(); toast('Estado atualizado.'); mobSave_(m); });
     tr.children[2].appendChild(sel);
     tr.children[3].textContent = m.notas || '—'; tr.children[3].style.cssText = 'max-width:260px;white-space:normal';
-    var ac = tr.children[4]; ac.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;border-bottom:0';
-    var mv = document.createElement('select'); mv.style.cssText = 'margin:0;width:auto;max-width:150px'; mv.title = 'Mudar para outra sala'; mv.setAttribute('aria-label', 'Mudar ' + m.nome + ' de sala');
-    var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Mover para…'; mv.appendChild(o0);
-    salas.filter(function(s){ return s.id !== m.salaId; }).forEach(function(s){ var o = document.createElement('option'); o.value = s.id; o.textContent = s.nome; mv.appendChild(o); });
-    mv.addEventListener('change', function(){
-      var s = salas.filter(function(x){ return x.id === mv.value; })[0]; if (!s) return;
-      m.salaId = s.id; m.sala = s.nome; renderAllAdminTabs(); toast('Movido para ' + s.nome + '.'); mobSave_(m);
-    });
-    var ed = document.createElement('button'); ed.type = 'button'; ed.className = 'btn secondary'; ed.textContent = '✎'; ed.title = 'Editar nome e notas'; ed.style.cssText = 'margin:0;padding:4px 9px;font-size:12px';
-    ed.addEventListener('click', function(){
-      var nome = prompt('Nome:', m.nome); if (nome === null) return;
-      var notas = prompt('Notas (opcional):', m.notas || ''); if (notas === null) return;
-      nome = nome.trim();
-      if (!nome){ toast('O nome não pode ficar vazio.'); return; }
-      m.nome = nome; m.notas = notas.trim();
-      renderAllAdminTabs(); toast('Atualizado.'); mobSave_(m);
-    });
-    var del = document.createElement('button'); del.type = 'button'; del.className = 'btn danger'; del.textContent = '✕'; del.title = 'Eliminar'; del.style.cssText = 'margin:0;padding:4px 9px;font-size:12px';
+    var ac = tr.children[4]; ac.className = 'mob-actions';
+    var ed = document.createElement('button'); ed.type = 'button'; ed.className = 'btn secondary'; ed.textContent = '✎'; ed.title = 'Editar nome, sala e notas'; ed.setAttribute('aria-label', 'Editar ' + m.nome); ed.style.cssText = 'margin:0;padding:4px 9px;font-size:12px';
+    ed.addEventListener('click', function(){ openMobEdit_(m); });
+    var del = document.createElement('button'); del.type = 'button'; del.className = 'btn danger'; del.textContent = '✕'; del.title = 'Eliminar'; del.setAttribute('aria-label', 'Eliminar ' + m.nome); del.style.cssText = 'margin:0;padding:4px 9px;font-size:12px';
     del.addEventListener('click', function(){
       if (!confirm('Eliminar "' + m.nome + '" (' + m.sala + ')?')) return;
       dashCache.mobiliario = dashCache.mobiliario.filter(function(x){ return x.id !== m.id; });
       renderAllAdminTabs(); toast('Eliminado.');
       bgRun_('api_adminMobDelete', adminState.token, [m.id]);
     });
-    ac.appendChild(mv); ac.appendChild(ed); ac.appendChild(del);
+    ac.appendChild(ed); ac.appendChild(del);
     tbody.appendChild(tr);
   });
 }
+
+/* Edição de uma linha (nome, sala e notas) numa janela própria — mantém a lista estreita. */
+var _mobEditId = null;
+function openMobEdit_(m){
+  var modal = document.getElementById('mob-edit-modal');
+  if (!modal) return;
+  var salas = ((dashCache && dashCache.salas) || []).slice().sort(function(x, y){ return fold(x.nome).localeCompare(fold(y.nome)); });
+  _mobEditId = m.id;
+  var sel = document.getElementById('mob-edit-sala');
+  fillSalaSelect_(sel, salas, '');
+  if (salas.some(function(s){ return s.id === m.salaId; })) sel.value = m.salaId;
+  document.getElementById('mob-edit-nome').value = m.nome || '';
+  document.getElementById('mob-edit-notas').value = m.notas || '';
+  document.getElementById('mob-edit-error').textContent = '';
+  var qty = Number(m.quantidade) || 0;
+  document.getElementById('mob-edit-sub').textContent = m.sala + ' · ' + fmtQty(qty) + ' unidade' + (qty === 1 ? '' : 's') + '. A quantidade e o estado editam-se na lista.';
+  modal.classList.remove('hidden');
+  document.body.classList.add('em-modal-open');
+  var nomeInput = document.getElementById('mob-edit-nome');
+  if (nomeInput && nomeInput.focus) nomeInput.focus();
+}
+function closeMobEdit_(){
+  var modal = document.getElementById('mob-edit-modal');
+  if (modal) modal.classList.add('hidden');
+  document.body.classList.remove('em-modal-open');
+  _mobEditId = null;
+}
+function saveMobEdit_(){
+  var m = ((dashCache && dashCache.mobiliario) || []).filter(function(x){ return x.id === _mobEditId; })[0];
+  if (!m){ closeMobEdit_(); return; }
+  var err = document.getElementById('mob-edit-error'); err.textContent = '';
+  var salaId = document.getElementById('mob-edit-sala').value;
+  var sala = ((dashCache.salas) || []).filter(function(s){ return s.id === salaId; })[0];
+  var nome = document.getElementById('mob-edit-nome').value.trim();
+  var notas = document.getElementById('mob-edit-notas').value.trim();
+  if (!sala){ err.textContent = 'Escolhe a sala.'; return; }
+  if (!nome){ err.textContent = 'O nome não pode ficar vazio.'; return; }
+  var mudouSala = sala.id !== m.salaId;
+  m.salaId = sala.id; m.sala = sala.nome; m.nome = nome; m.notas = notas;
+  closeMobEdit_();
+  renderAllAdminTabs();
+  toast(mudouSala ? 'Movido para ' + sala.nome + '.' : 'Guardado.');
+  mobSave_(m);
+}
+(function bindMobEdit_(){
+  var modal = document.getElementById('mob-edit-modal');
+  if (!modal) return;
+  function on(id, ev, fn){ var el = document.getElementById(id); if (el) el.addEventListener(ev, fn); }
+  on('mob-edit-close', 'click', closeMobEdit_);
+  on('mob-edit-cancel', 'click', closeMobEdit_);
+  on('mob-edit-save', 'click', saveMobEdit_);
+  on('mob-edit-nome', 'keydown', function(ev){ if (ev.key === 'Enter'){ ev.preventDefault(); saveMobEdit_(); } });
+  modal.addEventListener('click', function(ev){ if (ev.target === modal) closeMobEdit_(); });
+  document.addEventListener('keydown', function(ev){
+    if (ev.key === 'Escape' && !modal.classList.contains('hidden')) closeMobEdit_();
+  });
+})();
 document.getElementById('mob-add').addEventListener('click', function(){
   var err = document.getElementById('mob-error'); err.textContent = '';
   var salaId = document.getElementById('mob-sala').value, nome = document.getElementById('mob-nome').value.trim();
