@@ -3844,6 +3844,9 @@ function pcBoot_(){
   show('scr-pc');
   document.getElementById('pc-nome').textContent = 'A carregar…';
   document.getElementById('pc-sala-nome').textContent = '';
+  document.getElementById('pc-pin-bloco').classList.add('hidden'); // só aparece depois de ler o posto
+  document.getElementById('pc-ok').classList.add('hidden');
+  var est0 = document.getElementById('pc-estado'); est0.className = 'notice'; est0.textContent = 'A ler o estado da sala…';
   gsRunQ('api_pcInfo', pcState.id).then(function(info){
     if (!info || !info.ok){
       document.getElementById('pc-nome').textContent = 'Computador';
@@ -3988,8 +3991,9 @@ function salaBoot_(){
   salaState.token = '';
   document.getElementById('sala-form').classList.add('hidden');
   document.getElementById('sala-ok').classList.add('hidden');
-  document.getElementById('sala-pin-bloco').classList.remove('hidden');
+  document.getElementById('sala-pin-bloco').classList.add('hidden'); // só aparece depois de ler a sala
   document.getElementById('sala-erro').textContent = '';
+  var est0 = document.getElementById('sala-estado'); est0.className = 'notice'; est0.textContent = 'A ler o estado da sala…';
   gsRunQ('api_salaInfo', salaState.id).then(function(info){
     if (!info || !info.ok){
       document.getElementById('sala-nome').textContent = 'Sala';
@@ -4003,6 +4007,7 @@ function salaBoot_(){
     var est = document.getElementById('sala-estado');
     est.textContent = salaEstadoTexto_(info);
     est.className = 'notice' + (info.aberta ? '' : ' late');
+    document.getElementById('sala-pin-bloco').classList.remove('hidden');
     salaPintarDots_();
     salaBuildTeclado_();
     salaState.busy = false;
