@@ -744,7 +744,12 @@ document.getElementById('login-submit').addEventListener('click', function(){
   if (!pw){ err.textContent = 'Escreve a password.'; return; }
   btn.disabled = true;
   gsRun('api_adminLogin', pw).then(function(res){
-    if (!res.ok){ btn.disabled = false; err.textContent = 'Password incorreta.'; return; }
+    if (!res.ok){
+      btn.disabled = false;
+      if (res.locked){ err.textContent = 'Demasiadas tentativas erradas. Tenta outra vez daqui a ' + Math.round((res.lockSeconds || 300) / 60) + ' minutos.'; return; }
+      err.textContent = res.attemptsLeft ? 'Password incorreta. Restam ' + res.attemptsLeft + ' tentativa' + (res.attemptsLeft === 1 ? '' : 's') + '.' : 'Password incorreta.';
+      return;
+    }
     adminState.token = res.token;
     enterDashboard();
   }).catch(function(){ btn.disabled = false; err.textContent = 'Erro de ligação.'; });
@@ -2023,7 +2028,7 @@ function loadAutomation_(){
     document.getElementById('bk-dia').value = String(res.backup.dia);
     document.getElementById('bk-hora').value = String(res.backup.hora);
     document.getElementById('bk-email').value = res.backup.email || '';
-    document.getElementById('dg-tz').textContent = 'Horas no fuso horário do projeto: ' + (res.tz || '—') + '. O envio acontece na primeira verificação horária a partir da hora escolhida.';
+    document.getElementById('dg-tz').textContent = 'Horas no fuso horário do projeto: ' + (res.tz || '—') + '. O envio acontece na primeira verificação (de 10 em 10 minutos) a partir da hora escolhida.';
     syncBackupDayVisibility_();
     renderBackupStatus_(res);
     updateBackupBanner_(res);
@@ -2034,7 +2039,8 @@ function daysSince_(iso){ var t = new Date(iso).getTime(); return isNaN(t) ? nul
 function renderBackupStatus_(res){
   var st = document.getElementById('bk-status'); st.innerHTML = '';
   function line(txt, cls){ var d = document.createElement('div'); d.textContent = txt; if (cls) d.className = cls; st.appendChild(d); }
-  if (res.triggers === true) line('✅ Automações ativas (verificação de hora a hora).', 'state-ok');
+  if (res.triggers === true) line('✅ Automações ativas (verificação de 10 em 10 minutos).', 'state-ok');
+  else if (res.triggers === 'antigo') line('⚠️ O gatilho é de uma versão antiga (pode ser de hora a hora). Clica em "Ativar automações" para o passar a 10 em 10 minutos.', 'state-bad');
   else if (res.triggers === false) line('⚠️ As automações ainda não estão ativas: clica em "Ativar automações".', 'state-bad');
   else line('⚠️ Não foi possível confirmar se as automações estão ativas. Corre a função ativarAutomacoes no editor de Apps Script.', 'state-bad');
   if (/autoriz|authoriz|permiss|permission/i.test(res.backup.lastResult || '')) line(authHint_(res.backup.lastResult), 'state-bad');
@@ -2054,7 +2060,8 @@ function renderBackupStatus_(res){
 }
 function updateBackupBanner_(res){
   var el = document.getElementById('backup-banner'), msg = '';
-  if (res.triggers !== true) msg = 'As automações (cópias de segurança e resumo semanal) ainda não estão ativas. Vai a Definições e clica em "Ativar automações".';
+  if (res.triggers === 'antigo') msg = 'O gatilho das automações é de uma versão antiga. Vai a Definições e clica em "Ativar automações" para o atualizar.';
+  else if (res.triggers !== true) msg = 'As automações (cópias de segurança e resumo semanal) ainda não estão ativas. Vai a Definições e clica em "Ativar automações".';
   else if (!res.backup.ativo) msg = 'As cópias de segurança automáticas estão desligadas.';
   else if (!res.backup.lastAt) msg = 'Ainda não há nenhuma cópia de segurança.';
   else {
