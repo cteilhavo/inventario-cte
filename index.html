@@ -411,8 +411,9 @@
     <span class="tag">identificação</span>
     <h1>Quem és tu?</h1>
     <p class="subtitle" id="pin-cabinet-label">—</p>
-    <div class="pin-dots" id="pin-dots"></div>
-    <div class="keypad" id="keypad"></div>
+    <label>PIN</label>
+    <input type="password" id="pin-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" placeholder="Introduz o teu PIN">
+    <button class="btn block" id="pin-submit" type="button">Confirmar</button>
     <div class="error center" id="pin-error"></div>
     <p class="center muted" id="pin-hint" style="margin-top:10px">O teu PIN pessoal identifica-te como professor ou aluno.</p>
   </div>
@@ -457,8 +458,8 @@
 
     <div id="pc-pin-bloco">
       <p class="subtitle" id="pc-pin-hint">Introduz o teu PIN para começar.</p>
-      <div class="pin-dots" id="pc-pin-dots"></div>
-      <div class="keypad" id="pc-keypad"></div>
+      <input type="password" id="pc-pin-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" placeholder="Introduz o teu PIN">
+      <button class="btn block" id="pc-pin-submit" type="button">Confirmar</button>
       <div class="error center" id="pc-erro"></div>
     </div>
 
@@ -477,8 +478,8 @@
 
     <div id="sala-pin-bloco">
       <p class="subtitle" id="sala-pin-hint">Introduz o teu PIN para abrir a sala.</p>
-      <div class="pin-dots" id="sala-pin-dots"></div>
-      <div class="keypad" id="sala-keypad"></div>
+      <input type="password" id="sala-pin-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" placeholder="Introduz o teu PIN">
+      <button class="btn block" id="sala-pin-submit" type="button">Confirmar</button>
       <div class="error center" id="sala-erro"></div>
     </div>
 
