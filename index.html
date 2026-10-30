@@ -243,12 +243,6 @@
   .mob-sala-row td{background:var(--mint-dim); color:var(--mint); font-weight:700; border-bottom:0}
 
   @media (min-width:1000px){
-    #tab-users.active{flex-direction:row; align-items:flex-start}
-    #tab-users.active{flex-wrap:wrap}
-    #tab-users.active > .card:nth-child(1){flex:0 0 380px}
-    /* A lista ocupa a largura toda: a tabela tem 4 colunas + ações e não deve deslizar. */
-    #tab-users.active > .card:nth-child(2){flex:1 1 100%; min-width:0}
-    #tab-users.active > .card:nth-child(3){flex:1 1 100%}
     table{font-size:13.5px}
   }
   @media (min-width:1400px){
@@ -764,21 +758,20 @@
     </div>
 
     <div class="panel" id="tab-users">
-      <div class="card acc-teal">
+      <div class="card">
         <span class="tag">novo utilizador</span>
         <h2>Criar professor / aluno</h2>
-        <div class="grid2">
+        <div class="grid3">
           <div><label>Nome</label><input type="text" id="user-name" placeholder="Nome completo"></div>
           <div><label>Tipo</label><select id="user-role"><option value="aluno">Aluno</option><option value="professor">Professor</option><option value="coordenador_junior">Coordenador Júnior</option><option value="coordenador_cte">Coordenação CTE</option></select></div>
+          <div><label>Email (opcional — envio de PIN)</label><input type="email" id="user-email" placeholder="ex.: nome@escola.pt" autocomplete="off"></div>
         </div>
-        <label>Email (opcional — o PIN é enviado automaticamente para este endereço)</label>
-        <input type="email" id="user-email" placeholder="ex.: nome@escola.pt" autocomplete="off">
         <button class="btn" id="user-create" type="button">Criar utilizador</button>
         <div class="error" id="user-error"></div>
         <div id="user-created" class="created-box hidden"></div>
         <p class="muted">O PIN é gerado automaticamente, enviado por email (se indicares um email) e aparece à frente do utilizador, na lista. Pode ser consultado a qualquer momento.</p>
       </div>
-      <div class="card acc-teal" style="margin-top:14px">
+      <div class="card">
         <span class="tag">utilizadores existentes</span>
         <h2>Lista</h2>
         <div class="table-wrap"><table id="users-table"><thead><tr><th>Nome</th><th>Tipo</th><th>PIN</th><th>Email</th><th></th></tr></thead><tbody></tbody></table></div>
