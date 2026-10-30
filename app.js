@@ -64,10 +64,21 @@ var API_TIMEOUT_MS = 30000;
     document.body.appendChild(av);
   });
 })();
-function _call_(quiet, name, args){
+
+// PWA: guarda o "casco" da aplicação para abrir com Wi-Fi fraco. Os dados continuam
+// a vir do Apps Script; o service worker não toca nos POST para outro domínio.
+(function registarServiceWorker(){
+  if (!('serviceWorker' in navigator)) return;
+  if (!/^https?:$/.test(location.protocol)) return; // file:// não suporta service workers
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(){ /* sem PWA: a app funciona na mesma */ });
+  });
+})();
+
+function _call_(quiet, name, args, timeoutMs){
   if (!quiet) _beginPending();
   var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-  var timer = ctrl ? setTimeout(function(){ ctrl.abort(); }, API_TIMEOUT_MS) : null;
+  var timer = ctrl ? setTimeout(function(){ ctrl.abort(); }, timeoutMs || API_TIMEOUT_MS) : null;
   function fim(){ if (!quiet) _endPending(); if (timer) clearTimeout(timer); }
   if (!/^https:\/\/.+/.test(API_URL)){ fim(); return Promise.reject(new Error('sem_url')); }
   return fetch(API_URL, {
@@ -89,6 +100,8 @@ function _call_(quiet, name, args){
 }
 function gsRun(name){ return _call_(!!QUIET_[name], name, Array.prototype.slice.call(arguments, 1)); }
 function gsRunQ(name){ return _call_(true, name, Array.prototype.slice.call(arguments, 1)); }
+// Operações que podem demorar minutos no Apps Script (importar, comunicados, migrar PINs, cópia).
+function gsRunLong_(name){ return _call_(true, name, Array.prototype.slice.call(arguments, 1), 300000); }
 
 function toast(msg){
   var t = document.getElementById('toast');
@@ -102,6 +115,32 @@ function toast(msg){
 // (a mensagem é escrita no próprio nó, por isso role=alert é suficiente).
 document.querySelectorAll('.error').forEach(function(el){
   if (!el.getAttribute('role')) el.setAttribute('role', 'alert');
+});
+
+/* ---- Modais: foco preso dentro da janela e devolvido ao sítio de origem ---- */
+var _modalFocoAnterior = {};
+function modalFocoGuardar_(id){
+  _modalFocoAnterior[id] = document.activeElement || null;
+}
+function modalFocoRestaurar_(id){
+  var a = _modalFocoAnterior[id]; delete _modalFocoAnterior[id];
+  if (a && a.focus){ try{ a.focus(); }catch(e){} }
+}
+function modalFocaveis_(m){
+  if (!m) return [];
+  return Array.prototype.slice.call(m.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'))
+    .filter(function(el){ return !el.hasAttribute('hidden') && (el.offsetWidth > 0 || el.offsetHeight > 0); });
+}
+document.addEventListener('keydown', function(ev){
+  if (ev.key !== 'Tab') return;
+  var m = document.querySelector('.em-modal:not(.hidden)');
+  if (!m) return;
+  var f = modalFocaveis_(m);
+  if (!f.length) return;
+  var primeiro = f[0], ultimo = f[f.length - 1];
+  if (!m.contains(document.activeElement)){ ev.preventDefault(); primeiro.focus(); return; }
+  if (ev.shiftKey && document.activeElement === primeiro){ ev.preventDefault(); ultimo.focus(); }
+  else if (!ev.shiftKey && document.activeElement === ultimo){ ev.preventDefault(); primeiro.focus(); }
 });
 
 function show(id){
@@ -162,7 +201,7 @@ function playConfirmSound(){
 /* ============================================================
    QUIOSQUE
    ============================================================ */
-var kioskState = { cabinetId: window.__CABINET_ID__ || '', pin: '', token: '', user: null, cabinet: null, busy: false };
+var kioskState = { cabinetId: window.__CABINET_ID__ || '', pin: '', token: '', user: null, cabinet: null, busy: false, returnOnly: false };
 
 var pickerCabs = [];
 function fillPicker(q){
@@ -185,10 +224,20 @@ document.getElementById('picker-search').addEventListener('input', function(){ f
 function showCabOff_(){
   clearAutoLogout();
   kioskState.token = ''; kioskState.user = null; kioskState.cabinet = null; kioskData = null;
+  kioskState.returnOnly = false;
   kioskState.pin = '';
   pinBusy = false; setPinControls_(false); renderPinDots();
   show('scr-cab-off');
 }
+
+// Mesmo com a valência desativada, quem tem material dela em mãos pode devolvê-lo.
+// Este modo só mostra as devoluções: nada de stock, pedidos ou requisições.
+document.getElementById('cab-off-return').addEventListener('click', function(){
+  if (!kioskState.cabinetId){ toast('Abre o QR da valência onde tens o material.'); return; }
+  kioskState.returnOnly = true;
+  kioskState.cabLabel = 'Devolução de material';
+  goPin();
+});
 
 document.getElementById('cab-off-retry').addEventListener('click', function(){
   if (!kioskState.cabinetId){ bootKiosk(); return; }
@@ -205,6 +254,7 @@ document.getElementById('cab-off-picker').addEventListener('click', function(){
 });
 
 function bootKiosk(){
+  kioskState.returnOnly = false;
   if (kioskState.cabinetId){
     // Confirma primeiro que a valência do QR está publicada.
     show('scr-loading');
@@ -226,14 +276,21 @@ document.getElementById('picker-go').addEventListener('click', function(){
   goPin();
 });
 
+function pinHintText_(){
+  return kioskState.returnOnly
+    ? 'Introduz o teu PIN para veres o material que tens para devolver.'
+    : 'O teu PIN pessoal identifica-te como professor ou aluno.';
+}
 function goPin(){
   kioskState.pin = '';
   document.getElementById('pin-error').textContent = '';
-  document.getElementById('pin-hint').textContent = 'O teu PIN pessoal identifica-te como professor ou aluno.';
+  document.getElementById('pin-hint').textContent = pinHintText_();
   clearInterval(pinLockInterval);
   setPinControls_(false);
   renderPinDots();
-  if (kioskState.cabLabel){ document.getElementById('pin-cabinet-label').textContent = kioskState.cabLabel; }
+  if (kioskState.returnOnly){
+    document.getElementById('pin-cabinet-label').textContent = 'Devolução de material';
+  } else if (kioskState.cabLabel){ document.getElementById('pin-cabinet-label').textContent = kioskState.cabLabel; }
   else gsRun('api_getCabinetInfo', kioskState.cabinetId).then(function(info){
     if (!info){ // valência desativada ou inexistente (ex.: desativada depois de escolhida)
       kioskState.cabLabel = null;
@@ -265,7 +322,7 @@ function setPinBusy_(b){
   pinBusy = b;
   setPinControls_(b);
   if (!b) focusPin_();
-  document.getElementById('pin-hint').textContent = b ? 'A verificar…' : 'O teu PIN pessoal identifica-te como professor ou aluno.';
+  document.getElementById('pin-hint').textContent = b ? 'A verificar…' : pinHintText_();
 }
 function submitPin(){
   kioskState.pin = pinInput.value.replace(/\D/g, '');
@@ -315,7 +372,7 @@ function startPinLock(seconds){
     if (remaining < 0){
       clearInterval(pinLockInterval);
       errorEl.textContent = '';
-      hint.textContent = 'O teu PIN pessoal identifica-te como professor ou aluno.';
+      hint.textContent = pinHintText_();
       setPinControls_(false);
       focusPin_();
     }
@@ -325,21 +382,28 @@ function startPinLock(seconds){
 }
 
 function loadKioskData(){
-  gsRun('api_kioskData', kioskState.token).then(function(data){
+  var metodo = kioskState.returnOnly ? 'api_kioskDevolucaoDados' : 'api_kioskData';
+  gsRun(metodo, kioskState.token).then(function(data){
     resetDoneBtn_();
     if (!data.ok){
       if (data.error === 'armario_indisponivel'){ // a valência foi desativada durante a sessão
         kioskState.token = ''; kioskState.cabLabel = null;
         showCabOff_(); toast('Esta valência foi desativada.'); return;
       }
+      if (data.error === 'armario_nao_encontrado'){
+        kioskState.token = ''; kioskState.cabLabel = null;
+        showCabOff_(); toast('Esta valência já não existe.'); return;
+      }
       toast('Não foi possível carregar a valência.'); setPinBusy_(false); goPin(); return;
     }
     kioskState.cabinet = data.cabinet;
     kioskData = data;
-    document.getElementById('kiosk-cabinet-name').textContent = data.cabinet.nome + ' — ' + data.cabinet.sala;
+    document.getElementById('kiosk-cabinet-name').textContent = kioskState.returnOnly
+      ? 'Devolução de material'
+      : (data.cabinet.nome + ' — ' + data.cabinet.sala);
     document.getElementById('kiosk-user-line').textContent = 'Olá, ' + data.user.nome + ' (' + roleLabel(data.user.role) + ')';
     setPinBusy_(false);
-    showChoice();
+    if (kioskState.returnOnly) showKioskReturnOnly_(); else showChoice();
     show('scr-kiosk');
     resetAutoLogout();
   }).catch(function(){ toast('Erro de ligação.'); setPinBusy_(false); resetDoneBtn_(); });
@@ -358,6 +422,19 @@ function showChoice(){
   document.getElementById('kiosk-choice').classList.remove('hidden');
   document.getElementById('kiosk-request').classList.add('hidden');
   document.getElementById('kiosk-return').classList.add('hidden');
+  document.getElementById('request-back').classList.remove('hidden');
+  document.getElementById('return-back').classList.remove('hidden');
+}
+
+// Ecrã de quem só pode devolver (valência desativada): sem escolha, sem requisição.
+function showKioskReturnOnly_(){
+  document.getElementById('kiosk-choice').classList.add('hidden');
+  document.getElementById('kiosk-request').classList.add('hidden');
+  document.getElementById('kiosk-return').classList.remove('hidden');
+  document.getElementById('request-back').classList.add('hidden');
+  document.getElementById('return-back').classList.add('hidden');
+  renderReturnItems();
+  renderReturnedToday_();
 }
 
 function showRequestView(){
@@ -749,6 +826,11 @@ function logoutKiosk(){
   if (kioskState.token) gsRunQ('api_kioskLogout', kioskState.token);
   kioskState.pin = ''; kioskState.token=''; kioskState.user=null;
   clearAutoLogout();
+  if (kioskState.returnOnly){
+    kioskState.returnOnly = false; kioskState.cabLabel = null;
+    showCabOff_();
+    return;
+  }
   goPin();
 }
 
@@ -773,6 +855,8 @@ function bootAdmin(){
   gsRun('api_adminNeedsSetup').then(function(needs){
     if (needs) showAdmin('scr-admin-setup');
     else showAdmin('scr-admin-login');
+    var el = document.getElementById(needs ? 'setup-pw1' : 'login-pw');
+    if (el && el.focus) { try { el.focus(); } catch (e) {} }
   }).catch(function(){ toast('Erro de ligação.'); });
 }
 
@@ -792,6 +876,9 @@ function enterSubmete_(inputId, btnId){
 enterSubmete_('login-pw', 'login-submit');
 enterSubmete_('setup-pw1', 'setup-submit');
 enterSubmete_('setup-pw2', 'setup-submit');
+enterSubmete_('settings-pw-current', 'settings-pw-submit');
+enterSubmete_('settings-pw-new', 'settings-pw-submit');
+enterSubmete_('settings-pw-confirm', 'settings-pw-submit');
 
 document.getElementById('setup-submit').addEventListener('click', function(){
   var btn = this;
@@ -799,7 +886,7 @@ document.getElementById('setup-submit').addEventListener('click', function(){
   var p2 = document.getElementById('setup-pw2').value.trim();
   var err = document.getElementById('setup-error');
   err.textContent = '';
-  if (p1.length < 4){ err.textContent = 'A password tem de ter pelo menos 4 carateres.'; return; }
+  if (p1.length < 8){ err.textContent = 'A password tem de ter pelo menos 8 carateres.'; return; }
   if (p1 !== p2){ err.textContent = 'As passwords não coincidem.'; return; }
   btn.disabled = true; // evita dois pedidos com Enter repetido
   gsRun('api_adminSetup', p1).then(function(res){
@@ -1424,6 +1511,7 @@ function openEmailPreviewModal_(assunto, html, nota){
   if (body) body.innerHTML = html || '';
   // Nota genérica por omissão (modelos de PIN); os comunicados passam a sua própria nota.
   if (hint) hint.textContent = nota || 'Nome e PIN de exemplo. No envio são usados os dados reais do destinatário.';
+  modalFocoGuardar_('em-preview-modal');
   modal.classList.remove('hidden');
   document.body.classList.add('em-modal-open');
   var close = document.getElementById('em-preview-close');
@@ -1433,6 +1521,7 @@ function closeEmailPreviewModal_(){
   var modal = document.getElementById('em-preview-modal');
   if (modal) modal.classList.add('hidden');
   document.body.classList.remove('em-modal-open');
+  modalFocoRestaurar_('em-preview-modal');
 }
 
 
@@ -1914,6 +2003,29 @@ function renderUsersTab(data){
         }).catch(function(){ mail.disabled = false; toast('Erro de ligação.'); });
       });
       actions.appendChild(mail);
+    } else {
+      // Registo antigo sem PIN visível: gerar um PIN novo é a forma de o tornar utilizável
+      // e de garantir que não colide com nenhum outro.
+      var novoPin = document.createElement('button');
+      novoPin.textContent = '🔄 Novo PIN'; novoPin.className = 'btn secondary'; novoPin.type = 'button'; novoPin.style.marginTop = '0';
+      novoPin.title = 'Gerar um PIN novo e único para este utilizador';
+      novoPin.addEventListener('click', function(){
+        if (!confirm('Gerar um PIN novo para "' + u.nome + '"?\n\nO PIN antigo deixa de funcionar.')) return;
+        novoPin.disabled = true;
+        gsRun('api_adminNovoPin', adminState.token, u.pinHash).then(function(res){
+          novoPin.disabled = false;
+          if (!res || !res.ok){
+            toast(res && res.error === 'pin_partilhado'
+              ? 'Este PIN é partilhado com outra pessoa e já tem histórico: resolve em «Verificar PINs».'
+              : 'Não foi possível gerar o PIN.');
+            return;
+          }
+          u.pin = res.pin; u.pinHash = res.pinHash;
+          renderAllAdminTabs();
+          toast('PIN novo de ' + u.nome + ': ' + res.pin + (res.emailStatus === 'enviado' ? ' (enviado por email)' : ''));
+        }).catch(function(){ novoPin.disabled = false; toast('Erro de ligação.'); });
+      });
+      actions.appendChild(novoPin);
     }
     // Promover / rebaixar aluno <-> coordenador júnior
     if (u.role === 'aluno' || u.role === 'coordenador_junior'){
@@ -1958,6 +2070,123 @@ function renderUsersTab(data){
     tbody.appendChild(tr);
   });
 }
+
+/* ---- Verificação de unicidade dos PINs ---- */
+var _pinAudit = null;
+function pinAuditResumo_(res){
+  var el = document.getElementById('pin-audit-summary');
+  if (!el) return;
+  if (!res){
+    el.textContent = 'Confirma que nenhum PIN está repetido. A verificação não altera nada.';
+    return;
+  }
+  var partes = [res.total + ' utilizador' + (res.total === 1 ? '' : 'es'), res.comPin + ' com PIN visível'];
+  if (res.duplicados.length) partes.push(res.duplicados.length + ' PIN(s) repetido(s)');
+  if (res.incoerentes.length) partes.push(res.incoerentes.length + ' incoerência(s)');
+  if (res.semPin.length) partes.push(res.semPin.length + ' sem PIN visível');
+  if (res.fracos.length) partes.push(res.fracos.length + ' fácil(eis) de adivinhar');
+  el.textContent = partes.join(' · ') + '.';
+}
+function pinAuditLista_(box, titulo, itens){
+  if (!itens || !itens.length) return;
+  var h = document.createElement('h3'); h.textContent = titulo; h.style.marginTop = '14px';
+  box.appendChild(h);
+  var ul = document.createElement('ul');
+  ul.style.margin = '4px 0 0';
+  itens.forEach(function(t){ var li = document.createElement('li'); li.textContent = t; ul.appendChild(li); });
+  box.appendChild(ul);
+}
+function pinAuditRender_(res){
+  _pinAudit = res;
+  pinAuditResumo_(res);
+  var box = document.getElementById('pin-audit-results');
+  if (!box) return;
+  box.innerHTML = '';
+  var temProblema = res.duplicados.length > 0 || res.incoerentes.length > 0;
+  var fix = document.getElementById('pin-audit-fix');
+  if (fix) fix.classList.toggle('hidden', !temProblema);
+  if (!temProblema){
+    var ok = document.createElement('p');
+    ok.className = 'muted'; ok.style.margin = '10px 0 0';
+    ok.textContent = '✅ Todos os PINs são únicos.';
+    box.appendChild(ok);
+  }
+  pinAuditLista_(box, 'PINs repetidos', res.duplicados.map(function(d){
+    return (d.soHash ? 'Mesmo hash' : 'PIN ' + d.pin) + ': ' + d.nomes.join(', ');
+  }));
+  pinAuditLista_(box, 'Registos incoerentes', res.incoerentes.map(function(x){ return x.nome + ' — ' + x.motivo; }));
+  if (res.semPin.length){
+    pinAuditLista_(box, 'Sem PIN visível (registos antigos)', res.semPin.map(function(x){ return x.nome; }));
+  }
+  if (res.fracos.length){
+    pinAuditLista_(box, 'PINs fáceis de adivinhar', res.fracos);
+  }
+}
+function pinAuditCorrer_(silent){
+  var btn = document.getElementById('pin-audit-btn');
+  if (btn){ btn.disabled = true; btn.textContent = 'A verificar…'; }
+  gsRunQ('api_adminPinsAudit', adminState.token).then(function(res){
+    if (btn){ btn.disabled = false; btn.textContent = '🔎 Verificar PINs'; }
+    if (!res || !res.ok){
+      if (!silent) toast(res && res.error === 'sessao_invalida' ? 'Sessão expirada. Entra outra vez.' : 'Não foi possível verificar os PINs.');
+      return;
+    }
+    pinAuditRender_(res);
+    if (!silent) toast(res.unico ? 'Todos os PINs são únicos.' : 'Encontrei PINs repetidos ou incoerentes.');
+  }).catch(function(){
+    if (btn){ btn.disabled = false; btn.textContent = '🔎 Verificar PINs'; }
+    if (!silent) toast('Erro de ligação.');
+  });
+}
+function pinAuditCorrigir_(){
+  if (!confirm('Corrigir os PINs repetidos?\n\nMantém o PIN do utilizador mais antigo de cada grupo e dá um PIN novo aos restantes. Os PINs novos são enviados por email a quem tiver email; os outros aparecem aqui.')) return;
+  var btn = document.getElementById('pin-audit-fix');
+  if (btn){ btn.disabled = true; btn.textContent = 'A corrigir…'; }
+  gsRunLong_('api_adminPinsCorrigir', adminState.token).then(function(res){
+    if (btn){ btn.disabled = false; btn.textContent = 'Corrigir PINs duplicados'; }
+    if (!res || !res.ok){
+      toast(res && res.error === 'sessao_invalida' ? 'Sessão expirada. Entra outra vez.' : 'Não foi possível corrigir os PINs.');
+      return;
+    }
+    var box = document.getElementById('pin-audit-results');
+    box.innerHTML = '';
+    if (res.alterados.length){
+      var h = document.createElement('h3'); h.textContent = 'PINs novos'; h.style.marginTop = '12px'; box.appendChild(h);
+      var ul = document.createElement('ul'); ul.style.margin = '4px 0 0';
+      res.alterados.forEach(function(a){
+        var li = document.createElement('li');
+        var religados = a.migrados ? ' · ' + a.migrados + ' registo(s) religado(s)' : '';
+        if (a.tipo === 'hash'){
+          li.textContent = a.nome + ' — hash corrigido; o PIN ' + a.pin + ' mantém-se' + religados;
+        } else {
+          li.textContent = a.nome + ' — novo PIN ' + a.pin + religados +
+            (a.emailStatus === 'enviado' ? ' (enviado por email)' : a.emailStatus === 'erro' ? ' (email falhou: usa «Enviar PIN»)' : ' (sem email: comunica-o tu)');
+        }
+        ul.appendChild(li);
+      });
+      box.appendChild(ul);
+    }
+    if (res.falhas.length){
+      var hf = document.createElement('h3'); hf.textContent = 'Não foi possível corrigir'; hf.style.marginTop = '12px'; box.appendChild(hf);
+      var ulf = document.createElement('ul');
+      res.falhas.forEach(function(n){ var li = document.createElement('li'); li.textContent = n; ulf.appendChild(li); });
+      box.appendChild(ulf);
+    }
+    var sum = document.getElementById('pin-audit-summary');
+    if (sum) sum.textContent = 'Correção concluída. Volta a clicar em «Verificar PINs» para confirmar.';
+    toast(res.alterados.length ? res.alterados.length + ' alteração(ões) feita(s).' : 'Não havia nada a corrigir.');
+    refreshDashboard(true);
+  }).catch(function(){
+    if (btn){ btn.disabled = false; btn.textContent = 'Corrigir PINs duplicados'; }
+    toast('Erro de ligação.');
+  });
+}
+(function pinAuditBind_(){
+  var b = document.getElementById('pin-audit-btn');
+  if (b) b.addEventListener('click', function(){ pinAuditCorrer_(false); });
+  var f = document.getElementById('pin-audit-fix');
+  if (f) f.addEventListener('click', pinAuditCorrigir_);
+})();
 
 var _newUserHash = '';
 document.getElementById('user-create').addEventListener('click', function(){
@@ -2377,17 +2606,18 @@ document.getElementById('settings-pw-submit').addEventListener('click', function
   var err = document.getElementById('settings-pw-error');
   err.textContent = '';
   if (!cur){ err.textContent = 'Indica a password atual.'; return; }
-  if (pw1.length < 4){ err.textContent = 'A nova password tem de ter pelo menos 4 carateres.'; return; }
+  if (pw1.length < 8){ err.textContent = 'A nova password tem de ter pelo menos 8 carateres.'; return; }
   if (pw1 !== pw2){ err.textContent = 'As passwords novas não coincidem.'; return; }
   gsRun('api_adminChangePassword', adminState.token, cur, pw1).then(function(res){
     if (!res.ok){
       err.textContent = res.error === 'password_atual_incorreta' ? 'A password atual está incorreta.' : 'Não foi possível alterar a password.';
       return;
     }
+    if (res.token) adminState.token = res.token; // a versão mudou: esta sessão recebe um token novo
     document.getElementById('settings-pw-current').value = '';
     document.getElementById('settings-pw-new').value = '';
     document.getElementById('settings-pw-confirm').value = '';
-    toast('Password alterada com sucesso.');
+    toast('Password alterada. As outras sessões de administração foram terminadas.');
   }).catch(function(){ err.textContent = 'Erro de ligação.'; });
 });
 
@@ -2458,7 +2688,7 @@ document.getElementById('import-go').addEventListener('click', function(){
   var comEmail = valid.filter(function(r){ return r.email; }).length;
   if (!confirm('Importar ' + valid.length + ' utilizador(es)?' + (send && comEmail ? '\nSerão enviados ' + comEmail + ' email(s) com o PIN.' : ''))) return;
   btn.disabled = true;
-  gsRun('api_adminImportUsers', adminState.token, valid.map(function(r){ return { nome: r.nome, role: r.role, email: r.email }; }), send).then(function(res){
+  gsRunLong_('api_adminImportUsers', adminState.token, valid.map(function(r){ return { nome: r.nome, role: r.role, email: r.email }; }), send).then(function(res){
     btn.disabled = false;
     if (!res.ok){ document.getElementById('import-error').textContent = res.error === 'lista_grande' ? 'No máximo 300 pessoas de cada vez.' : 'Não foi possível importar.'; return; }
     _lastImportResults = res.results;
@@ -2814,7 +3044,7 @@ document.getElementById('bk-now').addEventListener('click', function(){
   err.textContent = '';
   saveAutomation_('bk-error', function(){
     btn.disabled = true; btn.textContent = 'A copiar…';
-    gsRun('api_adminBackupNow', adminState.token).then(function(res){
+    gsRunLong_('api_adminBackupNow', adminState.token).then(function(res){
       btn.disabled = false; btn.textContent = '💾 Fazer cópia agora';
       if (res.ok) toast('Cópia feita: ' + res.name);
       else err.textContent = authHint_(res.error || res.emailError);
@@ -2828,7 +3058,7 @@ document.getElementById('bk-activate').addEventListener('click', function(){
   gsRun('api_adminEnsureTriggers', adminState.token).then(function(res){
     if (!res.ok){ btn.disabled = false; err.textContent = 'Não foi possível ativar aqui (' + res.error + '). No editor de Apps Script, escolhe a função ativarAutomacoes, clica em Executar e aceita as permissões.'; return; }
     // faz logo a primeira cópia: assim qualquer problema de permissões aparece já, e não só às 02:00
-    return gsRun('api_adminBackupNow', adminState.token).then(function(b){
+    return gsRunLong_('api_adminBackupNow', adminState.token).then(function(b){
       btn.disabled = false;
       if (b.ok) toast('Automações ativas e primeira cópia feita.'); else err.textContent = authHint_(b.error || b.emailError);
       loadAutomation_(); renderNotifyLog_();
@@ -3496,6 +3726,7 @@ function abrirBugDetalhes_(x){
     x.contexto || '—'
   ];
   document.getElementById('bug-detail-body').textContent = linhas.join('\n');
+  modalFocoGuardar_('bug-detail-modal');
   document.getElementById('bug-detail-modal').classList.remove('hidden');
   document.body.classList.add('em-modal-open');
   var b = document.getElementById('bug-detail-close'); if (b && b.focus) b.focus();
@@ -3503,6 +3734,7 @@ function abrirBugDetalhes_(x){
 function fecharBugDetalhes_(){
   document.getElementById('bug-detail-modal').classList.add('hidden');
   document.body.classList.remove('em-modal-open');
+  modalFocoRestaurar_('bug-detail-modal');
 }
 
 function renderFbTab_(){
@@ -3584,6 +3816,8 @@ function profResetIdle_(){ clearTimeout(profIdleTimer); if (profState.token) pro
 function bootProf_(){
   document.getElementById('kiosk-root').classList.add('hidden');
   document.getElementById('prof-root').classList.remove('hidden');
+  var p = document.getElementById('prof-pin');
+  if (p && p.focus) { try { p.focus(); } catch (e) {} }
 }
 function profLogout_(){
   var t = profState.token;
@@ -3591,7 +3825,9 @@ function profLogout_(){
   if (t) gsRunQ('api_profLogout', t).catch(function(){});
   document.getElementById('scr-prof-dash').classList.add('hidden');
   document.getElementById('scr-prof-login').classList.remove('hidden');
-  document.getElementById('prof-pin').value = '';
+  var pi = document.getElementById('prof-pin');
+  pi.value = '';
+  if (pi.focus) { try { pi.focus(); } catch (e) {} }
 }
 function profExpired_(){ toast('Sessão expirada. Entra outra vez.'); profLogout_(); }
 
@@ -3622,7 +3858,11 @@ function profLogin_(){
   }).catch(function(){ btn.disabled = false; err.textContent = 'Erro de ligação. Tenta outra vez.'; });
 }
 document.getElementById('prof-login-submit').addEventListener('click', profLogin_);
-document.getElementById('prof-pin').addEventListener('keydown', function(e){ if (e.key === 'Enter') profLogin_(); });
+document.getElementById('prof-pin').addEventListener('input', function(){
+  var v = this.value.replace(/\D/g, '').slice(0, 8);
+  if (v !== this.value) this.value = v;
+});
+document.getElementById('prof-pin').addEventListener('keydown', function(e){ if (e.key === 'Enter'){ e.preventDefault(); profLogin_(); } });
 document.getElementById('prof-logout').addEventListener('click', profLogout_);
 
 document.querySelectorAll('#prof-root .tab-btn').forEach(function(btn){
@@ -4392,6 +4632,7 @@ function openMobEdit_(m){
   document.getElementById('mob-edit-error').textContent = '';
   var qty = Number(m.quantidade) || 0;
   document.getElementById('mob-edit-sub').textContent = m.sala + ' · ' + fmtQty(qty) + ' unidade' + (qty === 1 ? '' : 's') + '. A quantidade e o estado editam-se na lista.';
+  modalFocoGuardar_('mob-edit-modal');
   modal.classList.remove('hidden');
   document.body.classList.add('em-modal-open');
   var nomeInput = document.getElementById('mob-edit-nome');
@@ -4402,6 +4643,7 @@ function closeMobEdit_(){
   if (modal) modal.classList.add('hidden');
   document.body.classList.remove('em-modal-open');
   _mobEditId = null;
+  modalFocoRestaurar_('mob-edit-modal');
 }
 function saveMobEdit_(){
   var m = ((dashCache && dashCache.mobiliario) || []).filter(function(x){ return x.id === _mobEditId; })[0];
@@ -5051,6 +5293,8 @@ function salaBoot_(){
     salaPintarDots_();
     salaBuildTeclado_();
     salaState.busy = false;
+    var si = document.getElementById('sala-pin-input');
+    if (si && si.focus) { try { si.focus(); } catch (e) {} }
   }).catch(function(){
     document.getElementById('sala-nome').textContent = 'Sala';
     document.getElementById('sala-estado').textContent = 'Erro de ligação.';
@@ -5251,7 +5495,11 @@ function bugSessao_(){
 var bugLastFocus = null;
 var bugPedidoId = '';
 function bugAbrir_(){
-  bugLastFocus = document.activeElement || null;
+  // Em browsers que não focam botões ao clicar (ex.: Safari), o foco fica no body:
+  // guarda o botão flutuante, para o devolver ao fechar.
+  bugLastFocus = (document.activeElement && document.activeElement !== document.body)
+    ? document.activeElement
+    : document.getElementById('bug-fab');
   bugPedidoId = newClientId_();
   document.getElementById('bug-error').textContent = '';
   document.getElementById('bug-modal').classList.remove('hidden');
@@ -5721,7 +5969,7 @@ function cmEnviarAgora_(v){
     box.className = 'cm-result';
     box.innerHTML = '<p style="margin:0">A enviar o comunicado… Pode demorar alguns segundos.</p>';
   }
-  gsRun('api_adminSendComunicado', adminState.token, v.assunto, v.intro, v.corpo, newClientId_(), cmFiltroPayload_()).then(function(res){
+  gsRunLong_('api_adminSendComunicado', adminState.token, v.assunto, v.intro, v.corpo, newClientId_(), cmFiltroPayload_()).then(function(res){
     cmFimEnvio_();
     if (!res || !res.ok){
       if (box){ box.className = 'cm-result hidden'; box.innerHTML = ''; }

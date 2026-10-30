@@ -6,6 +6,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>(function(){var t="light";try{t=localStorage.getItem("cte-theme")||"light";}catch(e){}document.documentElement.setAttribute("data-theme",t==="dark"?"dark":"light");})();</script>
 <title>Inventário CTE</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1F3A93">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -629,7 +632,9 @@
     <h1 class="small">Valência indisponível</h1>
     <p class="muted">Esta valência está desativada (ou já não existe) e por isso não pode ser usada neste momento.</p>
     <p class="muted">Se precisas de material desta valência, fala com o responsável do CTE.</p>
-    <button class="btn block" id="cab-off-retry" type="button">Tentar outra vez</button>
+    <p class="muted"><b>Já tens material desta valência para devolver?</b> Podes fazê-lo aqui, mesmo com a valência desativada.</p>
+    <button class="btn block" id="cab-off-return" type="button">↩️ Devolver material desta valência</button>
+    <button class="btn secondary block" id="cab-off-retry" type="button">Tentar outra vez</button>
     <button class="btn secondary block" id="cab-off-picker" type="button">Ver valências disponíveis</button>
   </div>
 
@@ -741,10 +746,10 @@
     <span class="tag">área do professor</span>
     <h1 class="small">Entrar com o teu PIN</h1>
     <p class="muted">Usa o mesmo PIN pessoal do quiosque. Esta área é só para professores.</p>
-    <label>PIN</label>
-    <input type="password" id="prof-pin" inputmode="numeric" autocomplete="off" maxlength="8">
+    <label for="prof-pin">PIN</label>
+    <input type="password" id="prof-pin" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" aria-label="PIN pessoal" aria-describedby="prof-login-error">
     <button class="btn block" id="prof-login-submit" type="button">Entrar</button>
-    <div class="error center" id="prof-login-error"></div>
+    <div class="error center" id="prof-login-error" role="alert"></div>
   </div>
 
   <div id="scr-prof-dash" class="hidden shell">
@@ -897,10 +902,10 @@
     <span class="tag">primeira configuração</span>
     <h1 class="small">Definir password de administrador</h1>
     <p class="muted">Ainda não existe password. Define uma agora — só é pedida uma vez por dispositivo/sessão.</p>
-    <label>Nova password (mín. 4 carateres)</label>
-    <input type="password" id="setup-pw1">
-    <label>Confirmar password</label>
-    <input type="password" id="setup-pw2">
+    <label for="setup-pw1">Nova password (mín. 8 carateres)</label>
+    <input type="password" id="setup-pw1" autocomplete="new-password">
+    <label for="setup-pw2">Confirmar password</label>
+    <input type="password" id="setup-pw2" autocomplete="new-password">
     <button class="btn block" id="setup-submit" type="button">Definir e entrar</button>
     <div class="error center" id="setup-error"></div>
   </div>
@@ -908,8 +913,8 @@
   <div id="scr-admin-login" class="card hidden">
     <span class="tag">administração</span>
     <h1 class="small">Entrar como administrador</h1>
-    <label>Password</label>
-    <input type="password" id="login-pw">
+    <label for="login-pw">Password</label>
+    <input type="password" id="login-pw" autocomplete="current-password">
     <button class="btn block" id="login-submit" type="button">Entrar</button>
     <div class="error center" id="login-error"></div>
   </div>
@@ -1001,6 +1006,14 @@
         <span class="tag">utilizadores existentes</span>
         <h2>Lista</h2>
         <div class="table-wrap"><table id="users-table"><thead><tr><th>Nome</th><th>Tipo</th><th>PIN</th><th>Email</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+            <button class="btn secondary" id="pin-audit-btn" type="button">🔎 Verificar PINs</button>
+            <button class="btn hidden" id="pin-audit-fix" type="button">Corrigir PINs duplicados</button>
+          </div>
+          <p class="muted" id="pin-audit-summary" aria-live="polite" style="margin:10px 0 0">Confirma que nenhum PIN está repetido. A verificação não altera nada.</p>
+          <div id="pin-audit-results"></div>
+        </div>
       </div>
       <div class="card acc-teal" data-sub="importar" data-sub-label="Importar">
         <span class="tag">importar</span>

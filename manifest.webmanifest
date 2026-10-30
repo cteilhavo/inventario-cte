@@ -1,0 +1,18 @@
+{
+  "name": "Inventário CTE",
+  "short_name": "Inventário CTE",
+  "description": "Inventário e gestão de existências do Centro Tecnológico Especializado (AgEÍlhavo).",
+  "lang": "pt-PT",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F4F4F1",
+  "theme_color": "#1F3A93",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

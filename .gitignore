@@ -1,0 +1,17 @@
+# Nunca publicar dados nem etiquetas
+*.xlsx
+*.xls
+*.zip
+*.csv
+*.pdf
+*.png
+*.jpg
+*.jpeg
+# ícones da PWA (fazem parte da aplicação publicada)
+!icon-192.png
+!icon-512.png
+!apple-touch-icon.png
+
+# Sistema
+.DS_Store
+Thumbs.db
