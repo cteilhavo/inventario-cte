@@ -99,7 +99,7 @@ function toast(msg){
 }
 
 function show(id){
-  ['scr-loading','scr-picker','scr-pin','scr-kiosk','scr-done','scr-pc','scr-sala'].forEach(function(s){
+  ['scr-loading','scr-picker','scr-pin','scr-cab-off','scr-kiosk','scr-done','scr-pc','scr-sala'].forEach(function(s){
     document.getElementById(s).classList.toggle('hidden', s !== id);
   });
 }
@@ -174,9 +174,39 @@ function fillPicker(q){
 }
 document.getElementById('picker-search').addEventListener('input', function(){ fillPicker(this.value); });
 
+// O QR pode apontar para uma valência desativada (ou apagada): nesse caso mostra-se o aviso
+// "Valência indisponível" em vez do teclado do PIN.
+function showCabOff_(){
+  clearAutoLogout();
+  kioskState.token = ''; kioskState.user = null; kioskState.cabinet = null; kioskData = null;
+  kioskState.pin = '';
+  pinBusy = false; setPinControls_(false); renderPinDots();
+  show('scr-cab-off');
+}
+
+document.getElementById('cab-off-retry').addEventListener('click', function(){
+  if (!kioskState.cabinetId){ bootKiosk(); return; }
+  show('scr-loading');
+  gsRun('api_getCabinetInfo', kioskState.cabinetId).then(function(info){
+    if (!info){ showCabOff_(); toast('Esta valência continua indisponível.'); return; }
+    kioskState.cabLabel = info.nome + ' — ' + info.sala;
+    goPin();
+  }).catch(function(){ showCabOff_(); toast('Erro de ligação. Tenta outra vez.'); });
+});
+document.getElementById('cab-off-picker').addEventListener('click', function(){
+  kioskState.cabinetId = null; kioskState.cabLabel = null;
+  bootKiosk();
+});
+
 function bootKiosk(){
   if (kioskState.cabinetId){
-    goPin();
+    // Confirma primeiro que a valência do QR está publicada.
+    show('scr-loading');
+    gsRun('api_getCabinetInfo', kioskState.cabinetId).then(function(info){
+      if (!info){ kioskState.cabLabel = null; showCabOff_(); return; }
+      kioskState.cabLabel = info.nome + ' — ' + info.sala;
+      goPin();
+    }).catch(function(){ goPin(); }); // sem rede segue o fluxo normal (o PIN acusa o erro de ligação)
   } else {
     gsRun('api_getCabinets').then(function(cabs){
       pickerCabs = cabs;
@@ -199,10 +229,9 @@ function goPin(){
   renderPinDots();
   if (kioskState.cabLabel){ document.getElementById('pin-cabinet-label').textContent = kioskState.cabLabel; }
   else gsRun('api_getCabinetInfo', kioskState.cabinetId).then(function(info){
-    if (!info){ // valência desativada ou inexistente: volta à lista das valências publicadas
-      kioskState.cabinetId = null; kioskState.cabLabel = null;
-      toast('Esta valência não está disponível.');
-      bootKiosk();
+    if (!info){ // valência desativada ou inexistente (ex.: desativada depois de escolhida)
+      kioskState.cabLabel = null;
+      showCabOff_();
       return;
     }
     kioskState.cabLabel = info.nome + ' — ' + info.sala;
@@ -294,8 +323,8 @@ function loadKioskData(){
     resetDoneBtn_();
     if (!data.ok){
       if (data.error === 'armario_indisponivel'){ // a valência foi desativada durante a sessão
-        kioskState.cabinetId = null; kioskState.token = null; kioskState.cabLabel = null;
-        setPinBusy_(false); toast('Esta valência está desativada.'); bootKiosk(); return;
+        kioskState.token = ''; kioskState.cabLabel = null;
+        showCabOff_(); toast('Esta valência foi desativada.'); return;
       }
       toast('Não foi possível carregar a valência.'); setPinBusy_(false); goPin(); return;
     }
