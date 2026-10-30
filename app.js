@@ -860,7 +860,7 @@ function bindEmailModelosEvents_(el){
     openEmailModeloEditor_(EMAIL_MODELO_STATE.tipo || 'aluno', '', true);
   });
 }
-}
+$null
 
 document.querySelectorAll('#admin-root .tab-btn').forEach(function(btn){
   btn.addEventListener('click', function(){
