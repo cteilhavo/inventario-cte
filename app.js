@@ -52,7 +52,7 @@ var API_URL = String(window.API_URL || '').trim();
 var API_TIMEOUT_MS = 30000;
 // Tem de coincidir com CODE_REV no Code.gs. Serve só de diagnóstico: se o servidor
 // publicado (ou a página em cache) estiver noutra versão, a pré-visualização avisa.
-var CODE_REV_ESPERADA = '2026-10-31-a';
+var CODE_REV_ESPERADA = '2026-10-31-b';
 (function verificarConfiguracao(){
   if (/^https:\/\/.+/.test(API_URL)) return;
   window.addEventListener('load', function(){
@@ -5604,11 +5604,47 @@ function salaEstadoTexto_(info){
   } else {
     p.push('Sala fechada.');
   }
-  if (info.sessoes && info.sessoes.length){
-    p.push(info.sessoes.length + (info.sessoes.length === 1 ? ' sessão ativa: ' : ' sessões ativas: ') +
-      info.sessoes.map(function(s){ return s.computador + ' (' + s.aluno + ')'; }).join(', ') + '.');
-  }
   return p.join(' ');
+}
+
+// Sessões ativas da sala: uma linha por computador (quem está a usar, desde quando e até quando).
+function salaSessoesPintar_(info){
+  var bloco = document.getElementById('sala-sessoes');
+  var corpo = document.querySelector('#sala-sessoes-tabela tbody');
+  var titulo = document.getElementById('sala-sessoes-titulo');
+  if (!bloco || !corpo || !titulo) return;
+  var lista = ((info && info.sessoes) || []).slice().sort(function(a, b){
+    return String(a.computador || '').localeCompare(String(b.computador || ''), 'pt', { numeric: true });
+  });
+  titulo.textContent = 'Computadores em uso' + (lista.length ? ' (' + lista.length + ')' : '');
+  corpo.innerHTML = '';
+  if (!lista.length){
+    var vazia = document.createElement('tr');
+    var cel = document.createElement('td');
+    cel.colSpan = 4; cel.className = 'sala-vazio'; cel.textContent = 'Nenhum computador em uso nesta sala.';
+    vazia.appendChild(cel); corpo.appendChild(vazia);
+  } else {
+    lista.forEach(function(s){
+      var tr = document.createElement('tr');
+      [s.computador || '—', s.aluno || '—', salaHora_(s.inicio), salaHora_(s.fimPrevisto)].forEach(function(v, i){
+        var td = document.createElement('td');
+        td.textContent = v;
+        if (i > 1) td.className = 'muted';
+        tr.appendChild(td);
+      });
+      corpo.appendChild(tr);
+    });
+  }
+  bloco.classList.remove('hidden');
+}
+
+// Hora curta (HH:MM) de um instante ISO; '—' quando o servidor ainda não envia o campo.
+function salaHora_(iso){
+  if (!iso) return '—';
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  var p = function(n){ return (n < 10 ? '0' : '') + n; };
+  return p(d.getHours()) + ':' + p(d.getMinutes());
 }
 
 function salaBoot_(){
@@ -5619,6 +5655,7 @@ function salaBoot_(){
   document.getElementById('sala-form').classList.add('hidden');
   document.getElementById('sala-ok').classList.add('hidden');
   document.getElementById('sala-pin-bloco').classList.add('hidden'); // só aparece depois de ler a sala
+  document.getElementById('sala-sessoes').classList.add('hidden');
   document.getElementById('sala-erro').textContent = '';
   var est0 = document.getElementById('sala-estado'); est0.className = 'notice'; est0.textContent = 'A ler o estado da sala…';
   gsRunQ('api_salaInfo', salaState.id).then(function(info){
@@ -5627,6 +5664,7 @@ function salaBoot_(){
       document.getElementById('sala-estado').textContent = (info && info.error === 'sala_invalida') ? 'Este QR não corresponde a nenhuma sala.' : 'Não foi possível ler a sala.';
       document.getElementById('sala-estado').className = 'notice late';
       document.getElementById('sala-pin-bloco').classList.add('hidden');
+      document.getElementById('sala-sessoes').classList.add('hidden');
       return;
     }
     salaState.info = info;
@@ -5634,6 +5672,7 @@ function salaBoot_(){
     var est = document.getElementById('sala-estado');
     est.textContent = salaEstadoTexto_(info);
     est.className = 'notice' + (info.aberta ? '' : ' late');
+    salaSessoesPintar_(info);
     document.getElementById('sala-pin-bloco').classList.remove('hidden');
     salaPintarDots_();
     salaBuildTeclado_();
