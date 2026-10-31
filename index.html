@@ -309,7 +309,8 @@
   .sidenav{position:sticky; top:0; height:100vh; box-sizing:border-box; display:flex; flex-direction:column; gap:2px; padding:16px 12px;
     background:var(--surface); border-right:1px solid var(--border); overflow-y:auto; overflow-x:hidden; z-index:30}
   .nav-top{display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 4px 14px; min-height:36px}
-  .brand{font-weight:700; font-size:17px; white-space:nowrap}
+  .brand{font-weight:700; font-size:17px; white-space:nowrap; display:flex; align-items:center; gap:8px}
+  .brand-mark{width:22px; height:22px; border-radius:6px; flex:0 0 22px; display:block}
   .icon-btn{width:34px; height:34px; border-radius:9px; border:1px solid var(--border); background:var(--surface-2); color:var(--ink); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; flex:none}
   .icon-btn:hover{border-color:var(--mint)}
   .shell.collapsed #nav-collapse .ic{transform:rotate(180deg)}
@@ -757,7 +758,7 @@
 
   <div id="scr-prof-dash" class="hidden shell">
     <aside class="sidenav">
-      <div class="nav-top"><span class="brand">Inventário CTE</span></div>
+      <div class="nav-top"><span class="brand"><img class="brand-mark" src="icon-64.png" width="22" height="22" alt="" aria-hidden="true"><span>Inventário CTE</span></span></div>
       <nav class="nav" aria-label="Área do professor">
         <div class="nav-group">Professor</div>
         <button class="tab-btn active" data-tab="home" data-label="Início" title="Início" aria-label="Início"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span class="lbl">Início</span></button>
@@ -924,7 +925,7 @@
 
   <div id="scr-admin-dash" class="hidden shell">
     <aside class="sidenav" id="sidenav">
-      <div class="nav-top"><span class="brand">Inventário CTE</span><button class="icon-btn" id="nav-collapse" type="button" title="Recolher / expandir o menu" aria-label="Recolher ou expandir o menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button></div>
+      <div class="nav-top"><span class="brand"><img class="brand-mark" src="icon-64.png" width="22" height="22" alt="" aria-hidden="true"><span>Inventário CTE</span></span><button class="icon-btn" id="nav-collapse" type="button" title="Recolher / expandir o menu" aria-label="Recolher ou expandir o menu"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button></div>
       <nav class="nav" aria-label="Painel de administração">
         <div class="nav-group">Operação</div>
       <button class="tab-btn active" data-tab="home" data-label="Início" title="Início" aria-label="Início"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span class="lbl">Início</span></button>
