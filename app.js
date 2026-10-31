@@ -1357,7 +1357,7 @@ function renderEmailModelos_(res){
       '<input id="em-assunto" type="text" maxlength="150" autocomplete="off" placeholder="ex.: O teu acesso ao Inventário CTE">' +
       '<label for="em-corpo">Conteúdo específico da mensagem</label>' +
       '<textarea id="em-corpo" rows="9" maxlength="5000" placeholder="Acrescenta aqui só o que é próprio deste modelo. Podes deixar vazio."></textarea>' +
-      '<p class="em-hint">No assunto e no conteúdo podes usar <code>{{nome}}</code>, <code>{{link}}</code> e <code>{{perfil}}</code>. No conteúdo: <code>- </code> = lista, <code>1. </code> = lista numerada, <code>**negrito**</code>.</p>' +
+      '<p class="em-hint">No assunto e no conteúdo podes usar <code>{{nome}}</code>, <code>{{link}}</code> e <code>{{perfil}}</code>. No conteúdo: <code>- </code> = lista, <code>1. </code> = lista numerada, <code>**negrito**</code>. Uma linha em branco separa parágrafos.</p>' +
       '<div class="em-fixed">' +
         '<div class="em-fixed-head"><span class="em-fixed-title">Introdução fixa — incluída automaticamente</span><span class="em-auto">Automático</span></div>' +
         '<div class="em-fixed-body"><div class="em-mail-paper">' + introHtml + '</div>' +
