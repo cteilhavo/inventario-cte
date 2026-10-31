@@ -13,8 +13,8 @@ Fala com o Apps Script por `POST` (`{ metodo, args }` → `{ ok, dados }`).
 | `config.js` | **o único sítio a editar**: o endereço da aplicação |
 | `manifest.webmanifest` | manifesto PWA (nome, ícones, cores) |
 | `sw.js` | service worker: guarda o “casco” da aplicação para abrir com Wi‑Fi fraco; não interceta o POST para o Apps Script |
-| `icon-64.png`, `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` | ícones da PWA (instalação/atalho; o maskable tem mais margem) |
-| `apple-touch-icon.png` | ícone do atalho no iOS |
+| `icon-64.png`, `icon-192.png`, `icon-512.png` | ícones da PWA (instalação/atalho), com fundo transparente |
+| `apple-touch-icon.png` | ícone do atalho no iOS, com fundo transparente |
 | `logo-cte.svg` | versão vetorial do símbolo (hexágono C) |
 | `favicon.ico`, `favicon-32.png`, `favicon-16.png` | ícone da aba do browser (o 16 px é simplificado) |
 
@@ -27,7 +27,7 @@ Fala com o Apps Script por `POST` (`{ metodo, args }` → `{ ok, dados }`).
 4. *Settings → Pages → Deploy from a branch → main / (root) → Save*.
 5. Ao fim de ~1 minuto: `https://UTILIZADOR.github.io/inventario-cte/`
 6. **Ao alterar `app.js`, `index.html`, `qrlib.js` ou os ícones**, sobe `CACHE_VERSAO` no início de `sw.js`
-   (ex.: `cte-inventario-v3` → `cte-inventario-v4`). Sem isso, o browser pode continuar a servir
+   (ex.: `cte-inventario-v4` → `cte-inventario-v5`). Sem isso, o browser pode continuar a servir
    a versão anterior a partir da cache do service worker.
 7. Na folha de cálculo, em `Config`, coloca `appUrlBase` com esse endereço
    **com a barra final** (`https://UTILIZADOR.github.io/inventario-cte/`),
