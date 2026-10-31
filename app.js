@@ -50,6 +50,9 @@ var QUIET_ = {
  * NUNCA acrescentar cabeçalhos personalizados. */
 var API_URL = String(window.API_URL || '').trim();
 var API_TIMEOUT_MS = 30000;
+// Tem de coincidir com CODE_REV no Code.gs. Serve só de diagnóstico: se o servidor
+// publicado (ou a página em cache) estiver noutra versão, a pré-visualização avisa.
+var CODE_REV_ESPERADA = '2026-10-31-a';
 (function verificarConfiguracao(){
   if (/^https:\/\/.+/.test(API_URL)) return;
   window.addEventListener('load', function(){
@@ -1565,7 +1568,7 @@ function emPreview_(){
       EMAIL_UI.status[tipo] = emSameDraft_(d, EMAIL_UI.baseline[tipo]) ? 'saved' : 'dirty';
     }
     emUpdateStatus_();
-    openEmailPreviewModal_(res.assunto, res.html);
+    openEmailPreviewModal_(res.assunto, res.html, '', res.rev);
   }).catch(function(err){
     if (btn) btn.disabled = false;
     EMAIL_UI.error[tipo] = emFetchError_(err, 'Não foi possível pré-visualizar.');
@@ -1610,7 +1613,7 @@ function emPreviewModel_(tipo, id){
     corpoVariavel: m.corpoVariavel !== undefined ? (m.corpoVariavel || '') : (m.corpo || '')
   }).then(function(res){
     if (!res || !res.ok){ toast(emErrorText_(res && res.error) || 'Não foi possível pré-visualizar.'); return; }
-    openEmailPreviewModal_(res.assunto, res.html);
+    openEmailPreviewModal_(res.assunto, res.html, '', res.rev);
   }).catch(function(err){ toast(emFetchError_(err, 'Não foi possível pré-visualizar.')); });
 }
 
@@ -1645,7 +1648,7 @@ function emBindPreviewModal_(){
     if (ev.key === 'Escape' && !modal.classList.contains('hidden')) closeEmailPreviewModal_();
   });
 }
-function openEmailPreviewModal_(assunto, html, nota){
+function openEmailPreviewModal_(assunto, html, nota, rev){
   var modal = document.getElementById('em-preview-modal');
   if (!modal) return;
   var titulo = document.getElementById('em-preview-title');
@@ -1654,7 +1657,19 @@ function openEmailPreviewModal_(assunto, html, nota){
   if (titulo) titulo.textContent = assunto || 'Sem assunto';
   if (body) body.innerHTML = html || '';
   // Nota genérica por omissão (modelos de PIN); os comunicados passam a sua própria nota.
-  if (hint) hint.textContent = nota || 'Nome e PIN de exemplo. No envio são usados os dados reais do destinatário.';
+  if (hint){
+    if (rev !== CODE_REV_ESPERADA){
+      // O HTML vem do servidor: se o Apps Script publicado estiver numa versão antiga,
+      // as alterações ao email não aparecem. É melhor dizer isto do que parecer avaria.
+      hint.textContent = '⚠️ A página e o servidor não estão na mesma versão do código (servidor: ' + (rev || 'desconhecida') + '). A pré-visualização pode estar desatualizada: publica o Code.gs numa nova versão da implantação e recarrega a página (Ctrl+F5).';
+      hint.style.color = '#B45309';
+      hint.style.fontWeight = '600';
+    } else {
+      hint.textContent = nota || 'Nome e PIN de exemplo. No envio são usados os dados reais do destinatário.';
+      hint.style.color = '';
+      hint.style.fontWeight = '';
+    }
+  }
   modalFocoGuardar_('em-preview-modal');
   modal.classList.remove('hidden');
   document.body.classList.add('em-modal-open');
@@ -6241,7 +6256,7 @@ function cmPreview_(){
       if (err) err.textContent = cmErroTexto_(res && res.error);
       return;
     }
-    openEmailPreviewModal_(res.assunto, res.html, 'Pré-visualização do e-mail tal como será enviado. A assinatura é acrescentada automaticamente.');
+    openEmailPreviewModal_(res.assunto, res.html, 'Pré-visualização do e-mail tal como será enviado. A assinatura é acrescentada automaticamente.', res.rev);
   }).catch(function(e){
     if (btn) btn.disabled = false;
     if (err) err.textContent = (e && e.message === 'resposta_invalida')
