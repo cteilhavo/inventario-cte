@@ -8,7 +8,7 @@
  * Ao publicar uma alteração aos ficheiros em site/, subir CACHE_VERSAO (ex.: v1 -> v2).
  * Sem isso, o browser pode continuar a servir a versão anterior da cache.
  */
-const CACHE_VERSAO = 'cte-inventario-v4';
+const CACHE_VERSAO = 'cte-inventario-v5';
 const CACHE = CACHE_VERSAO;
 const PRECACHE = [
   './',

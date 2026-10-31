@@ -126,22 +126,55 @@
   /* tabs (admin) */
   .panel{display:none}
   .panel.active{display:block}
-  table{border-collapse:collapse; width:100%; font-size:12.8px; margin-top:10px}
-  th,td{border-bottom:1px solid var(--border); padding:9px 9px; text-align:left}
-  th{font-weight:600; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); font-family:ui-monospace, "SF Mono", Consolas, monospace}
-  .table-wrap{overflow-x:auto}
-  /* Tabelas mais compactas: menos altura por linha e botões mais pequenos,
-     em todas as tabelas do painel (utilizadores, stock, histórico, etc.). */
-  .table-wrap th, .table-wrap td{padding:4px 8px; font-size:12.5px; line-height:1.25}
-  .table-wrap .btn{min-height:26px; padding:3px 9px; font-size:12px; border-radius:8px; margin-top:0}
+  /* ---- Tabelas: um único aspeto em toda a aplicação ----
+     Cabeçalho em faixa, grelha com molddura, linhas alternadas e ações à direita.
+     Nenhum campo de edição vive dentro de uma linha: edita-se na janela de detalhes. */
+  table{border-collapse:separate; border-spacing:0; width:100%; font-size:12.8px; margin-top:10px}
+  th,td{padding:9px 10px; text-align:left; vertical-align:middle; border-bottom:1px solid var(--border)}
+  th{font-weight:700; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-family:ui-monospace, "SF Mono", Consolas, monospace; background:var(--surface-2)}
+  .table-wrap{overflow-x:auto; margin-top:10px; border:1px solid var(--border-strong); border-radius:10px; background:var(--surface)}
+  .table-wrap > table{margin:0}
+  .table-wrap th, .table-wrap td{padding:7px 10px; font-size:12.5px; line-height:1.3}
+  .table-wrap thead th{background:var(--surface-2); color:var(--ink-soft); border-bottom:1px solid var(--border-strong); white-space:nowrap}
+  .table-wrap tbody tr:nth-child(even) td{background:color-mix(in srgb, var(--surface-2) 45%, var(--surface))}
+  .table-wrap tbody tr:last-child td{border-bottom:0}
+  .table-wrap .btn{min-height:26px; padding:4px 10px; font-size:11.5px; border-radius:8px; margin-top:0; text-transform:none; letter-spacing:0; font-family:inherit}
   .table-wrap select{min-height:26px; padding:2px 6px; font-size:12.5px; border-radius:8px}
   .table-wrap .pin-pill{font-size:12px; padding:1px 7px}
   .table-wrap input[type="checkbox"]{width:auto}
-  /* A última coluna (ações) fica numa só linha; se não couber, a tabela desliza. */
-  .table-wrap td:last-child{white-space:nowrap}
-  .table-wrap td:last-child > div{flex-wrap:nowrap !important}
-  tr.low td{background:color-mix(in srgb, var(--danger) 8%, transparent)}
-  tr:hover td{background:var(--surface-hover)}
+  /* Coluna das ações: sempre à direita, numa só linha (se não couber, a tabela desliza). */
+  .table-wrap td.act-cell{white-space:nowrap; text-align:right}
+  .table-wrap td.act-cell > div{flex-wrap:nowrap !important; justify-content:flex-end}
+  .table-actions{display:inline-flex; gap:6px; align-items:center; justify-content:flex-end; flex-wrap:nowrap}
+  .act{
+    display:inline-flex; align-items:center; justify-content:center; gap:4px; min-width:30px; height:28px;
+    padding:0 8px; margin:0; border-radius:6px; border:1px solid var(--border-strong);
+    background:var(--surface); color:var(--ink-soft); font-family:inherit; font-size:13px; line-height:1; cursor:pointer;
+  }
+  .act:hover:not(:disabled){border-color:var(--mint); color:var(--mint); filter:brightness(.97)}
+  .act.primary{background:var(--mint); border-color:var(--mint); color:var(--mint-ink)}
+  .act.primary:hover:not(:disabled){color:var(--mint-ink); filter:brightness(1.12)}
+  .act.danger{background:var(--danger); border-color:var(--danger); color:var(--danger-ink)}
+  .act.danger:hover:not(:disabled){color:var(--danger-ink); filter:brightness(1.1)}
+  .act:disabled{opacity:.45; cursor:not-allowed}
+  .table-wrap tbody tr.low td{background:color-mix(in srgb, var(--danger) 8%, var(--surface))}
+  .table-wrap tbody tr.new-user td{background:color-mix(in srgb, var(--mint) 9%, var(--surface))}
+  .table-wrap tbody tr:hover td{background:var(--surface-hover)}
+
+  /* ---- Janela de detalhes de uma linha (ver + editar) ---- */
+  .row-modal-card{width:min(640px,100%)}
+  .row-details{display:grid; grid-template-columns:1fr 1fr; gap:0 20px; margin:0 0 12px}
+  .row-detail{min-width:0; padding:8px 0; border-bottom:1px dashed var(--border)}
+  .row-detail dt{font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-faint); font-family:ui-monospace, "SF Mono", Consolas, monospace}
+  .row-detail dd{margin:3px 0 0; font-size:13.5px; color:var(--ink); overflow-wrap:anywhere; white-space:pre-wrap}
+  .row-detail.wide{grid-column:1/-1}
+  .row-form{border-top:1px solid var(--border); margin-top:6px; padding-top:4px}
+  .row-form .grid2, .row-form .grid3{margin:0}
+  .row-modal-actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; margin-top:16px}
+  .row-modal-actions .btn{margin-top:0}
+  .row-modal-links{display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; padding-top:12px; border-top:1px solid var(--border)}
+  .row-modal-links .btn{margin-top:0}
+  @media (max-width:560px){.row-details{grid-template-columns:1fr}}
   .grid2{display:grid; grid-template-columns:1fr 1fr; gap:0 12px}
   .grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 12px}
   @media (max-width:560px){.grid2,.grid3{grid-template-columns:1fr}}
@@ -252,15 +285,12 @@
   .sala-new{display:flex; gap:8px; margin-bottom:12px}
   .sala-new input{flex:1; margin:0}
   .sala-new .btn{margin:0}
-  .mob-sala-row td{background:var(--mint-dim); color:var(--mint); font-weight:700; border-bottom:0}
+  .table-wrap tbody tr.mob-sala-row td{background:var(--mint-dim); color:var(--mint); font-weight:700; border-bottom:0}
   .mob-actions{display:flex; gap:6px; justify-content:flex-end; align-items:center}
   /* colunas estreitas para os controlos; o nome e as notas absorvem o espaço restante */
   #mob-table th:nth-child(2), #mob-table td:nth-child(2){width:84px}
   #mob-table th:nth-child(3), #mob-table td:nth-child(3){width:170px}
-  #mob-table th:nth-child(5), #mob-table td:nth-child(5){width:84px; white-space:nowrap}
-  .mob-edit-card{width:min(460px,100%)}
-  .mob-edit-actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:16px}
-  .mob-edit-actions .btn{margin-top:0}
+  #mob-table th:last-child, #mob-table td:last-child{width:84px; white-space:nowrap}
 
   @media (min-width:1000px){
     table{font-size:13.5px}
@@ -513,11 +543,6 @@
   .bug-success{text-align:center; padding:10px 4px 4px}
   .bug-success .bug-ok{font-size:42px; line-height:1; margin-bottom:10px}
   .bug-success h3{font-family:"Outfit",sans-serif; font-size:20px; text-transform:none; letter-spacing:-.01em; color:var(--ink); margin:0 0 8px}
-  .bug-detail-pre{
-    margin:0; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--surface-2);
-    font-family:ui-monospace,"SF Mono",Consolas,monospace; font-size:12.5px; line-height:1.55; color:var(--ink);
-    white-space:pre-wrap; word-break:break-word;
-  }
   @media (max-width:760px){
     #bug-fab{bottom:calc(78px + env(safe-area-inset-bottom,0px)); right:12px; padding:11px 14px}
   }
@@ -820,7 +845,7 @@
         <div class="card" data-sub="danificados" data-sub-label="Danificados">
           <span class="tag">estado</span>
           <h2>Equipamento que assinalei como danificado</h2>
-          <div class="table-wrap"><table id="pdmg-table"><thead><tr><th>Data</th><th>Item</th><th>Qtd.</th><th>Estado</th><th>Nota do responsável</th></tr></thead><tbody></tbody></table></div>
+          <div class="table-wrap"><table id="pdmg-table"><thead><tr><th>Data</th><th>Item</th><th>Qtd.</th><th>Estado</th><th>Nota do responsável</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
 
@@ -844,7 +869,7 @@
         <div class="card" data-sub="minhas" data-sub-label="As minhas reservas">
           <span class="tag">as minhas</span>
           <h2>As minhas reservas</h2>
-          <div class="table-wrap"><table id="pres-table"><thead><tr><th>Equipamento</th><th>Qtd.</th><th>Período</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
+          <div class="table-wrap"><table id="pres-table"><thead><tr><th>Equipamento</th><th>Qtd.</th><th>Período</th><th>Estado</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
 
@@ -867,8 +892,8 @@
           <p id="phist-summary" class="muted" style="margin:4px 0 0"></p>
           <button class="btn secondary" id="phist-csv" type="button">⬇ Exportar CSV</button>
           <button class="btn secondary" id="phist-pdf" type="button">📄 Exportar PDF</button>
-          <div class="table-wrap" id="phist-mov-wrap"><table id="phist-table"><thead><tr><th>Data/Hora</th><th>Valência</th><th>Item</th><th>Tipo</th><th>Qtd.</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
-          <div class="table-wrap hidden" id="phist-aberturas-wrap"><table id="phist-aberturas-table"><thead><tr><th>Início</th><th>Sala</th><th>Motivo</th><th>Fim previsto</th><th>Fim</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+          <div class="table-wrap" id="phist-mov-wrap"><table id="phist-table"><thead><tr><th>Data/Hora</th><th>Valência</th><th>Item</th><th>Tipo</th><th>Qtd.</th><th>Estado</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
+          <div class="table-wrap hidden" id="phist-aberturas-wrap"><table id="phist-aberturas-table"><thead><tr><th>Início</th><th>Sala</th><th>Motivo</th><th>Fim previsto</th><th>Fim</th><th>Estado</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
 
@@ -891,7 +916,7 @@
         <div class="card" data-sub="envios" data-sub-label="Os meus envios">
           <span class="tag">histórico</span>
           <h2>Os meus envios</h2>
-          <div class="table-wrap"><table id="pfb-table"><thead><tr><th>Data</th><th>Assunto</th><th>Onde</th><th>Mensagem</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+          <div class="table-wrap"><table id="pfb-table"><thead><tr><th>Data</th><th>Assunto</th><th>Onde</th><th>Mensagem</th><th>Estado</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
 
@@ -1009,7 +1034,7 @@
       <div class="card" data-sub="lista" data-sub-label="Lista">
         <span class="tag">utilizadores existentes</span>
         <h2>Lista</h2>
-        <div class="table-wrap"><table id="users-table"><thead><tr><th>Nome</th><th>Tipo</th><th>PIN</th><th>Email</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="table-wrap"><table id="users-table"><thead><tr><th>Nome</th><th>Tipo</th><th>PIN</th><th>Email</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
         <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
           <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
             <button class="btn secondary" id="pin-audit-btn" type="button">🔎 Verificar PINs</button>
@@ -1053,14 +1078,14 @@
             </label>
           </div>
         </div>
-        <div class="table-wrap"><table id="stock-table"><thead><tr><th>Valência</th><th>Item</th><th>Categoria</th><th>Inicial</th><th>Limite mín.</th><th>Saldo</th></tr></thead><tbody></tbody></table></div>
+        <div class="table-wrap"><table id="stock-table"><thead><tr><th>Valência</th><th>Item</th><th>Categoria</th><th>Inicial</th><th>Limite mín.</th><th>Saldo</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
       </div>
 
       <div class="card acc-rust" id="outstanding-card" data-sub="devolver" data-sub-label="Por devolver">
         <span class="tag">reconciliação</span>
         <h2>Material por devolver</h2>
         <p class="muted">Tudo o que ainda consta como requisitado por alguém, em todas as valências. Usa só depois de confirmares fisicamente que o material já está de volta — esta ação regista uma devolução para cada linha assinalada.</p>
-        <div class="table-wrap"><table id="outstanding-table"><thead><tr><th><input type="checkbox" id="outstanding-select-all" style="width:auto"></th><th>Valência</th><th>Item</th><th>Pessoa</th><th>Qtd.</th><th>Prazo</th></tr></thead><tbody></tbody></table></div>
+        <div class="table-wrap"><table id="outstanding-table"><thead><tr><th><input type="checkbox" id="outstanding-select-all" style="width:auto"></th><th>Valência</th><th>Item</th><th>Pessoa</th><th>Qtd.</th><th>Prazo</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
         <button class="btn amber" id="outstanding-return-selected" type="button">↩️ Marcar selecionados como devolvidos</button>
         <button class="btn danger" id="outstanding-return-all" type="button">↩️ Marcar TUDO como devolvido</button>
       </div>
@@ -1094,7 +1119,7 @@
         </div>
         <button class="btn secondary" id="hist-export" type="button">⬇ Exportar CSV</button>
         <button class="btn secondary" id="hist-export-pdf" type="button">📄 Exportar PDF (resultados filtrados)</button>
-        <div class="table-wrap"><table id="hist-table"><thead><tr><th>Data/Hora</th><th>Valência</th><th>Item</th><th>Tipo</th><th>Qtd.</th><th>Nome</th><th>Tipo utiliz.</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="table-wrap"><table id="hist-table"><thead><tr><th>Data/Hora</th><th>Valência</th><th>Item</th><th>Tipo</th><th>Qtd.</th><th>Nome</th><th>Tipo utiliz.</th><th>Estado</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
       </div>
     </div>
 
@@ -1108,7 +1133,7 @@
           <div><label>Pesquisar</label><input type="text" id="req-search" placeholder="Pessoa, item, motivo…" autocomplete="off"></div>
           <div><label>&nbsp;</label><div id="req-summary" class="muted" style="margin-top:10px"></div></div>
         </div>
-        <div class="table-wrap"><table id="req-table"><thead><tr><th>Data</th><th>Pessoa</th><th>Equipamento</th><th>Qtd.</th><th>Tempo pedido</th><th>Motivo</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="table-wrap"><table id="req-table"><thead><tr><th>Data</th><th>Pessoa</th><th>Equipamento</th><th>Qtd.</th><th>Tempo pedido</th><th>Motivo</th><th>Estado</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
       </div>
     </div>
 
@@ -1123,7 +1148,7 @@
           <div><label>Pesquisar</label><input type="text" id="fb-search" placeholder="Pessoa, ecrã, item, mensagem…" autocomplete="off"></div>
         </div>
         <div id="fb-summary" class="muted" style="margin-top:8px"></div>
-        <div class="table-wrap"><table id="fb-table"><thead><tr><th>Data</th><th>Pessoa</th><th>Tipo</th><th>Onde</th><th>Mensagem</th><th>Estado</th></tr></thead><tbody></tbody></table></div>
+        <div class="table-wrap"><table id="fb-table"><thead><tr><th>Data</th><th>Pessoa</th><th>Tipo</th><th>Onde</th><th>Mensagem</th><th>Estado</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
       </div>
     </div>
 
@@ -1137,7 +1162,7 @@
           <div><label>Pesquisar</label><input type="text" id="rsv-search" placeholder="Professor, equipamento, motivo…" autocomplete="off"></div>
           <div><label>&nbsp;</label><div id="rsv-summary" class="muted" style="margin-top:10px"></div></div>
         </div>
-        <div class="table-wrap"><table id="rsv-table"><thead><tr><th>Professor</th><th>Equipamento</th><th>Qtd.</th><th>Período</th><th>Motivo</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="table-wrap"><table id="rsv-table"><thead><tr><th>Professor</th><th>Equipamento</th><th>Qtd.</th><th>Período</th><th>Motivo</th><th>Estado</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
       </div>
     </div>
 
@@ -1160,7 +1185,7 @@
           <div><label>Pesquisar</label><input type="text" id="dmg-search" placeholder="Item, pessoa, descrição…" autocomplete="off"></div>
           <div><label>&nbsp;</label><div id="dmg-summary" class="muted" style="margin-top:10px"></div></div>
         </div>
-        <div class="table-wrap"><table id="dmg-table"><thead><tr><th>Data</th><th>Valência</th><th>Item</th><th>Qtd.</th><th>Devolvido por</th><th>Funcional?</th><th>Dano / o que aconteceu</th><th>Estado</th><th>Nota</th></tr></thead><tbody></tbody></table></div>
+        <div class="table-wrap"><table id="dmg-table"><thead><tr><th>Data</th><th>Valência</th><th>Item</th><th>Qtd.</th><th>Devolvido por</th><th>Funcional?</th><th>Dano / o que aconteceu</th><th>Estado</th><th>Nota</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
       </div>
     </div>
 
@@ -1225,7 +1250,7 @@
         </div>
         <div class="muted" id="pc-summary" style="margin-top:8px"></div>
         <button class="btn secondary" id="pc-imprimir-lista" type="button">🖨 Imprimir etiquetas (o que estiver filtrado)</button>
-        <div class="table-wrap"><table id="pc-table"><thead><tr><th>Computador</th><th>Sala</th><th>Estado</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="table-wrap"><table id="pc-table"><thead><tr><th>Computador</th><th>Sala</th><th>Estado</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
       </div>
 
       <div class="card" data-sub="utilizacao" data-sub-label="Utilização">
@@ -1243,14 +1268,14 @@
         </div>
         <button class="btn secondary" id="pch-csv" type="button">⬇ Exportar CSV (o que estiver filtrado)</button>
         <div class="muted" id="pch-resumo" style="margin-top:8px"></div>
-        <div class="table-wrap"><table id="pch-table"><thead><tr><th>Data</th><th>Início</th><th>Fim</th><th>Aluno</th><th>Computador</th><th>Sala</th><th>Terminou por</th></tr></thead><tbody></tbody></table></div>
+        <div class="table-wrap"><table id="pch-table"><thead><tr><th>Data</th><th>Início</th><th>Fim</th><th>Aluno</th><th>Computador</th><th>Sala</th><th>Terminou por</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
       </div>
 
       <div class="card" data-sub="aberturas" data-sub-label="Aberturas de sala">
         <span class="tag">aberturas</span>
         <h2>Aberturas de sala</h2>
         <p class="muted">Quem abriu cada sala fora do horário letivo, com que motivo e até quando (e quem fechou).</p>
-        <div class="table-wrap"><table id="pab-table"><thead><tr><th>Data</th><th>Sala</th><th>Motivo</th><th>Abriu</th><th>Início</th><th>Fecho previsto</th><th>Fecho efetivo</th></tr></thead><tbody></tbody></table></div>
+        <div class="table-wrap"><table id="pab-table"><thead><tr><th>Data</th><th>Sala</th><th>Motivo</th><th>Abriu</th><th>Início</th><th>Fecho previsto</th><th>Fecho efetivo</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
         <div class="muted" id="pab-resumo" style="margin-top:8px"></div>
       </div>
 
@@ -1409,7 +1434,7 @@
         <h2>Últimas tentativas de envio</h2>
         <p class="muted">Cada aviso automático (e cada teste) fica registado aqui, incluindo os que falharam ou foram ignorados por não haver email configurado.</p>
         <button class="btn secondary" id="notify-log-refresh" type="button">🔄 Atualizar registo</button>
-        <div class="table-wrap"><table id="notify-log-table"><thead><tr><th>Data/Hora</th><th>Tipo</th><th>Destinatário</th><th>Resultado</th><th>Detalhe</th></tr></thead><tbody></tbody></table></div>
+        <div class="table-wrap"><table id="notify-log-table"><thead><tr><th>Data/Hora</th><th>Tipo</th><th>Destinatário</th><th>Resultado</th><th>Detalhe</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
       </div>
 
       <div class="card acc-amber" data-sub="resumo" data-sub-label="Resumo semanal">
@@ -1447,7 +1472,7 @@
         <button class="btn amber" id="bk-activate" type="button">⚙️ Ativar automações</button>
         <div class="error" id="bk-error"></div>
         <div id="bk-status" class="muted" style="margin-top:8px"></div>
-        <div class="table-wrap"><table id="bk-table"><thead><tr><th>Cópia</th><th>Data</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="table-wrap"><table id="bk-table"><thead><tr><th>Cópia</th><th>Data</th><th aria-label="Ações"></th></tr></thead><tbody></tbody></table></div>
         <p class="muted">A cópia no Drive fica na mesma conta Google da folha. O email para uma conta externa protege também contra a perda dessa conta. O email contém PINs e emails: usa só uma conta de responsável.</p>
       </div>
     </div>
@@ -1502,19 +1527,6 @@
   </div>
 </div>
 
-<div id="bug-detail-modal" class="em-modal bug-modal hidden" role="dialog" aria-modal="true" aria-labelledby="bug-detail-title">
-  <div class="em-modal-card bug-modal-card" role="document">
-    <div class="em-modal-head">
-      <div>
-        <span class="em-modal-kicker">Painel · Feedback</span>
-        <h3 id="bug-detail-title">Detalhes do bug</h3>
-      </div>
-      <button class="icon-btn" id="bug-detail-close" type="button" aria-label="Fechar" title="Fechar">✕</button>
-    </div>
-    <div class="em-modal-body"><pre class="bug-detail-pre" id="bug-detail-body"></pre></div>
-  </div>
-</div>
-
 <div id="em-preview-modal" class="em-modal hidden" role="dialog" aria-modal="true" aria-labelledby="em-preview-title">
   <div class="em-modal-card" role="document">
     <div class="em-modal-head">
@@ -1531,28 +1543,26 @@
   </div>
 </div>
 
-<!-- Editar mobiliário: nome, sala e notas (quantidade e estado editam-se na lista) -->
-<div id="mob-edit-modal" class="em-modal hidden" role="dialog" aria-modal="true" aria-labelledby="mob-edit-title">
-  <div class="em-modal-card mob-edit-card" role="document">
+<!-- Janela única de detalhes de uma linha: mostra tudo e é aqui que se altera
+     qualquer dado (nunca dentro da própria tabela). -->
+<div id="row-modal" class="em-modal hidden" role="dialog" aria-modal="true" aria-labelledby="row-modal-title" aria-describedby="row-modal-sub">
+  <div class="em-modal-card row-modal-card" role="document">
     <div class="em-modal-head">
       <div>
-        <span class="em-modal-kicker">Inventário fixo</span>
-        <h3 id="mob-edit-title">Editar móvel</h3>
-        <p class="em-hint" id="mob-edit-sub">A quantidade e o estado editam-se diretamente na lista.</p>
+        <span class="em-modal-kicker" id="row-modal-kicker">Detalhes</span>
+        <h3 id="row-modal-title">Detalhes</h3>
+        <p class="em-hint" id="row-modal-sub"></p>
       </div>
-      <button class="icon-btn" id="mob-edit-close" type="button" aria-label="Fechar" title="Fechar">✕</button>
+      <button class="icon-btn" id="row-modal-close" type="button" aria-label="Fechar detalhes" title="Fechar">✕</button>
     </div>
     <div class="em-modal-body">
-      <label for="mob-edit-sala">Sala</label>
-      <select id="mob-edit-sala"></select>
-      <label for="mob-edit-nome">Móvel / equipamento</label>
-      <input type="text" id="mob-edit-nome" maxlength="150" autocomplete="off">
-      <label for="mob-edit-notas">Notas (opcional)</label>
-      <input type="text" id="mob-edit-notas" maxlength="300" autocomplete="off">
-      <div class="error" id="mob-edit-error"></div>
-      <div class="mob-edit-actions">
-        <button class="btn secondary" id="mob-edit-cancel" type="button">Cancelar</button>
-        <button class="btn" id="mob-edit-save" type="button">Guardar</button>
+      <dl class="row-details" id="row-modal-details"></dl>
+      <div class="row-form" id="row-modal-form"></div>
+      <div class="error" id="row-modal-error" role="alert"></div>
+      <div class="row-modal-links" id="row-modal-links"></div>
+      <div class="row-modal-actions">
+        <button class="btn secondary" id="row-modal-close-btn" type="button">Fechar</button>
+        <button class="btn" id="row-modal-save" type="button">Guardar</button>
       </div>
     </div>
   </div>

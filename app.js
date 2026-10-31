@@ -143,6 +143,150 @@ document.addEventListener('keydown', function(ev){
   else if (!ev.shiftKey && document.activeElement === ultimo){ ev.preventDefault(); primeiro.focus(); }
 });
 
+/* ============================================================
+   TABELAS: botões de ação e janela de detalhes de uma linha
+   Regra do projeto: nenhuma tabela tem campos de edição dentro das
+   células. Para alterar seja o que for, abre-se a janela de detalhes
+   da linha (primeiro botão da coluna de ações) e guarda-se lá.
+   ============================================================ */
+function actBtn_(glyph, title, cls, onClick){
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'act' + (cls ? ' ' + cls : '');
+  b.textContent = glyph;
+  b.title = title;
+  b.setAttribute('aria-label', title);
+  if (onClick) b.addEventListener('click', onClick);
+  return b;
+}
+function tableActionsCell_(tr, index){
+  var td = tr.children[index];
+  td.className = 'act-cell';
+  td.innerHTML = '';
+  var box = document.createElement('div'); box.className = 'table-actions';
+  td.appendChild(box);
+  return box;
+}
+
+var _rowModal = null;
+function openRowModal_(cfg){
+  var modal = document.getElementById('row-modal');
+  if (!modal || !cfg) return;
+  _rowModal = cfg;
+  document.getElementById('row-modal-kicker').textContent = cfg.kicker || 'Detalhes';
+  document.getElementById('row-modal-title').textContent = cfg.title || 'Detalhes';
+  var sub = document.getElementById('row-modal-sub');
+  sub.textContent = cfg.subtitle || '';
+  sub.classList.toggle('hidden', !cfg.subtitle);
+
+  var dl = document.getElementById('row-modal-details');
+  dl.innerHTML = '';
+  (cfg.details || []).forEach(function(d){
+    if (!d || d.value === '' || d.value === undefined || d.value === null) return;
+    var row = document.createElement('div');
+    row.className = 'row-detail' + (d.wide ? ' wide' : '');
+    var dt = document.createElement('dt'); dt.textContent = d.label;
+    var dd = document.createElement('dd');
+    if (d.html) dd.innerHTML = d.html; else dd.textContent = d.value;
+    row.appendChild(dt); row.appendChild(dd);
+    dl.appendChild(row);
+  });
+  dl.classList.toggle('hidden', !dl.children.length);
+
+  var form = document.getElementById('row-modal-form');
+  form.innerHTML = '';
+  (cfg.fields || []).forEach(function(f){
+    var id = 'row-modal-f-' + f.key;
+    var wrap = document.createElement('div');
+    if (f.half) wrap.className = 'half';
+    var lab = document.createElement('label'); lab.setAttribute('for', id); lab.textContent = f.label;
+    wrap.appendChild(lab);
+    var el;
+    if (f.type === 'select'){
+      el = document.createElement('select');
+      (f.options || []).forEach(function(o){
+        var op = document.createElement('option'); op.value = o.value; op.textContent = o.label; el.appendChild(op);
+      });
+    } else if (f.type === 'textarea'){
+      el = document.createElement('textarea');
+      if (f.rows) el.rows = f.rows;
+    } else {
+      el = document.createElement('input');
+      el.type = f.type || 'text';
+      if (f.type === 'number'){ el.min = f.min != null ? f.min : ''; if (f.step) el.step = f.step; }
+      if (f.maxlength) el.maxLength = f.maxlength;
+      if (f.placeholder) el.placeholder = f.placeholder;
+    }
+    el.id = id;
+    el.value = f.value == null ? '' : f.value;
+    wrap.appendChild(el);
+    form.appendChild(wrap);
+  });
+  form.classList.toggle('hidden', !(cfg.fields && cfg.fields.length));
+
+  var links = document.getElementById('row-modal-links');
+  links.innerHTML = '';
+  (cfg.actions || []).forEach(function(a){
+    if (!a) return;
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = a.className || 'btn secondary';
+    b.textContent = a.label;
+    if (a.title) b.title = a.title;
+    b.addEventListener('click', function(){ a.onClick(); });
+    links.appendChild(b);
+  });
+  links.classList.toggle('hidden', !links.children.length);
+
+  document.getElementById('row-modal-error').textContent = '';
+  document.getElementById('row-modal-save').classList.toggle('hidden', !(cfg.fields && cfg.fields.length));
+  document.getElementById('row-modal-save').textContent = cfg.saveLabel || 'Guardar';
+
+  modalFocoGuardar_('row-modal');
+  modal.classList.remove('hidden');
+  document.body.classList.add('em-modal-open');
+  var first = document.querySelector('#row-modal-form input, #row-modal-form select, #row-modal-form textarea') || document.getElementById('row-modal-close');
+  if (first && first.focus){ try{ first.focus(); }catch(e){} }
+}
+function closeRowModal_(){
+  var modal = document.getElementById('row-modal');
+  if (!modal || modal.classList.contains('hidden')) return;
+  modal.classList.add('hidden');
+  document.body.classList.remove('em-modal-open');
+  _rowModal = null;
+  modalFocoRestaurar_('row-modal');
+}
+function saveRowModal_(){
+  var cfg = _rowModal;
+  if (!cfg) return;
+  var values = {};
+  (cfg.fields || []).forEach(function(f){
+    var el = document.getElementById('row-modal-f-' + f.key);
+    if (!el) return;
+    values[f.key] = f.type === 'number' ? Number(el.value) : el.value;
+  });
+  document.getElementById('row-modal-error').textContent = '';
+  var fail = function(msg){ document.getElementById('row-modal-error').textContent = msg || 'Não foi possível guardar.'; };
+  if (cfg.onSave) cfg.onSave(values, fail);
+  else closeRowModal_();
+}
+(function bindRowModal_(){
+  var modal = document.getElementById('row-modal');
+  if (!modal) return;
+  document.getElementById('row-modal-close').addEventListener('click', closeRowModal_);
+  document.getElementById('row-modal-close-btn').addEventListener('click', closeRowModal_);
+  document.getElementById('row-modal-save').addEventListener('click', saveRowModal_);
+  modal.addEventListener('click', function(ev){ if (ev.target === modal) closeRowModal_(); });
+  document.addEventListener('keydown', function(ev){
+    if (ev.key === 'Escape' && !modal.classList.contains('hidden')) closeRowModal_();
+  });
+})();
+
+// Botão que abre a janela de detalhes: o primeiro (mais à esquerda) da coluna de ações.
+function rowModalBtn_(cfg, editable){
+  return actBtn_(editable ? '✎' : '🔎', editable ? 'Detalhes e edição' : 'Ver detalhes', editable ? 'primary' : '', function(){ openRowModal_(cfg); });
+}
+
 function show(id){
   ['scr-loading','scr-picker','scr-pin','scr-cab-off','scr-kiosk','scr-done','scr-pc','scr-sala'].forEach(function(s){
     document.getElementById(s).classList.toggle('hidden', s !== id);
@@ -1977,96 +2121,109 @@ function renderUsersTab(data){
     tr.children[3].textContent = u.email || '—';
     if (_newUserHash && u.pinHash === _newUserHash && u.ativo !== false) tr.className = 'new-user';
 
-    var actions = tr.children[4];
-    actions.style.cssText = 'display:flex;gap:6px;flex-wrap:nowrap;border-bottom:0';
+    var ac = tableActionsCell_(tr, 4);
     tr.children[1].style.whiteSpace = 'nowrap';
+
+    // Os comandos sobre a conta vivem na janela de detalhes; a linha só tem detalhes + eliminar.
+    var comandos = [];
     if (u.pin){
-      var mail = document.createElement('button');
-      mail.textContent = '✉ Enviar PIN'; mail.className = 'btn secondary'; mail.type = 'button'; mail.style.marginTop = '0';
-      mail.title = 'Enviar (ou reenviar) o PIN por email';
-      mail.addEventListener('click', function(){
-        var to = u.email || '';
-        if (!to){
-          var r = prompt('Email de ' + u.nome + ' para enviar o PIN:', '');
-          if (r === null) return;
-          to = r.trim();
-          if (!to){ toast('Indica um email.'); return; }
+      comandos.push({
+        label: '✉ Enviar PIN',
+        title: 'Enviar (ou reenviar) o PIN por email',
+        onClick: function(){
+          var to = u.email || '';
+          if (!to){
+            var r = prompt('Email de ' + u.nome + ' para enviar o PIN:', '');
+            if (r === null) return;
+            to = r.trim();
+            if (!to){ toast('Indica um email.'); return; }
+          }
+          gsRun('api_adminSendPin', adminState.token, u.pinHash, to).then(function(res){
+            if (res.email) u.email = res.email;
+            if (res.ok) toast('PIN enviado para ' + res.email + '.');
+            else toast(res.error === 'email_invalido' ? 'Email inválido.' : 'Não foi possível enviar o email. Vê o registo em Definições.');
+            closeRowModal_();
+            renderAllAdminTabs();
+            renderNotifyLog_();
+          }).catch(function(){ toast('Erro de ligação.'); });
         }
-        mail.disabled = true;
-        gsRun('api_adminSendPin', adminState.token, u.pinHash, to).then(function(res){
-          mail.disabled = false;
-          if (res.email) u.email = res.email;
-          if (res.ok) toast('PIN enviado para ' + res.email + '.');
-          else toast(res.error === 'email_invalido' ? 'Email inválido.' : 'Não foi possível enviar o email. Vê o registo em Definições.');
-          renderAllAdminTabs();
-          renderNotifyLog_();
-        }).catch(function(){ mail.disabled = false; toast('Erro de ligação.'); });
       });
-      actions.appendChild(mail);
     } else {
       // Registo antigo sem PIN visível: gerar um PIN novo é a forma de o tornar utilizável
       // e de garantir que não colide com nenhum outro.
-      var novoPin = document.createElement('button');
-      novoPin.textContent = '🔄 Novo PIN'; novoPin.className = 'btn secondary'; novoPin.type = 'button'; novoPin.style.marginTop = '0';
-      novoPin.title = 'Gerar um PIN novo e único para este utilizador';
-      novoPin.addEventListener('click', function(){
-        if (!confirm('Gerar um PIN novo para "' + u.nome + '"?\n\nO PIN antigo deixa de funcionar.')) return;
-        novoPin.disabled = true;
-        gsRun('api_adminNovoPin', adminState.token, u.pinHash).then(function(res){
-          novoPin.disabled = false;
-          if (!res || !res.ok){
-            toast(res && res.error === 'pin_partilhado'
-              ? 'Este PIN é partilhado com outra pessoa e já tem histórico: resolve em «Verificar PINs».'
-              : 'Não foi possível gerar o PIN.');
-            return;
-          }
-          u.pin = res.pin; u.pinHash = res.pinHash;
-          renderAllAdminTabs();
-          toast('PIN novo de ' + u.nome + ': ' + res.pin + (res.emailStatus === 'enviado' ? ' (enviado por email)' : ''));
-        }).catch(function(){ novoPin.disabled = false; toast('Erro de ligação.'); });
+      comandos.push({
+        label: '🔄 Novo PIN',
+        title: 'Gerar um PIN novo e único para este utilizador',
+        onClick: function(){
+          if (!confirm('Gerar um PIN novo para "' + u.nome + '"?\n\nO PIN antigo deixa de funcionar.')) return;
+          gsRun('api_adminNovoPin', adminState.token, u.pinHash).then(function(res){
+            if (!res || !res.ok){
+              toast(res && res.error === 'pin_partilhado'
+                ? 'Este PIN é partilhado com outra pessoa e já tem histórico: resolve em «Verificar PINs».'
+                : 'Não foi possível gerar o PIN.');
+              return;
+            }
+            u.pin = res.pin; u.pinHash = res.pinHash;
+            closeRowModal_();
+            renderAllAdminTabs();
+            toast('PIN novo de ' + u.nome + ': ' + res.pin + (res.emailStatus === 'enviado' ? ' (enviado por email)' : ''));
+          }).catch(function(){ toast('Erro de ligação.'); });
+        }
       });
-      actions.appendChild(novoPin);
     }
     // Promover / rebaixar aluno <-> coordenador júnior
     if (u.role === 'aluno' || u.role === 'coordenador_junior'){
       var subir = u.role === 'aluno';
-      var cargo = document.createElement('button');
-      cargo.type = 'button'; cargo.className = 'btn secondary'; cargo.style.marginTop = '0';
-      cargo.textContent = subir ? '↑ C. Júnior' : '↓ Aluno';
-      cargo.title = subir ? 'Passar este aluno a coordenador júnior' : 'Voltar a tratar como aluno';
-      cargo.addEventListener('click', function(){
-        var novo = subir ? 'coordenador_junior' : 'aluno';
-        u.role = novo;
-        renderAllAdminTabs();
-        toast(subir ? u.nome + ' é agora coordenador júnior.' : u.nome + ' voltou a ser aluno.');
-        bgRun_('api_adminSetUserRole', adminState.token, u.pinHash, novo);
+      comandos.push({
+        label: subir ? '↑ C. Júnior' : '↓ Aluno',
+        title: subir ? 'Passar este aluno a coordenador júnior' : 'Voltar a tratar como aluno',
+        onClick: function(){
+          var novo = subir ? 'coordenador_junior' : 'aluno';
+          u.role = novo;
+          closeRowModal_();
+          renderAllAdminTabs();
+          toast(subir ? u.nome + ' é agora coordenador júnior.' : u.nome + ' voltou a ser aluno.');
+          bgRun_('api_adminSetUserRole', adminState.token, u.pinHash, novo);
+        }
       });
-      actions.appendChild(cargo);
     }
 
-    var tog = document.createElement('button');
-    tog.type = 'button'; tog.className = 'btn secondary'; tog.style.marginTop = '0';
-    tog.textContent = u.ativo === false ? 'Reativar' : 'Desativar';
-    tog.title = u.ativo === false ? 'Devolver o acesso a este utilizador' : 'Impedir o acesso, mantendo o histórico';
-    tog.addEventListener('click', function(){
-      var ativar = u.ativo === false;
-      if (!ativar && !confirm('Desativar "' + u.nome + '"? Deixa de poder entrar no quiosque, mas o histórico mantém-se. Se ainda tiver material por devolver, continua na lista "Material por devolver".')) return;
-      u.ativo = ativar;
-      renderAllAdminTabs();
-      toast(ativar ? 'Utilizador reativado.' : 'Utilizador desativado.');
-      bgRun_('api_adminSetUserActive', adminState.token, u.pinHash, ativar);
+    comandos.push({
+      label: u.ativo === false ? 'Reativar' : 'Desativar',
+      className: u.ativo === false ? 'btn secondary' : 'btn danger',
+      title: u.ativo === false ? 'Devolver o acesso a este utilizador' : 'Impedir o acesso, mantendo o histórico',
+      onClick: function(){
+        var ativar = u.ativo === false;
+        if (!ativar && !confirm('Desativar "' + u.nome + '"? Deixa de poder entrar no quiosque, mas o histórico mantém-se. Se ainda tiver material por devolver, continua na lista "Material por devolver".')) return;
+        u.ativo = ativar;
+        closeRowModal_();
+        renderAllAdminTabs();
+        toast(ativar ? 'Utilizador reativado.' : 'Utilizador desativado.');
+        bgRun_('api_adminSetUserActive', adminState.token, u.pinHash, ativar);
+      }
     });
-    actions.appendChild(tog);
-    var del = document.createElement('button');
-    del.textContent = 'Eliminar'; del.className = 'btn danger'; del.type='button'; del.style.marginTop='0';
-    del.addEventListener('click', function(){
+
+    ac.appendChild(rowModalBtn_({
+      kicker: 'Utilizadores',
+      title: u.nome,
+      subtitle: roleLabel(u.role) + (u.ativo === false ? ' · desativado' : ''),
+      details: [
+        { label: 'Nome', value: u.nome, wide: true },
+        { label: 'Tipo', value: roleLabel(u.role) },
+        { label: 'Estado', value: u.ativo === false ? 'Desativado' : 'Ativo' },
+        { label: 'PIN', value: u.pin || 'Sem PIN visível' },
+        { label: 'Email', value: u.email || '—', wide: true }
+      ],
+      actions: comandos
+    }, false));
+
+    ac.appendChild(actBtn_('✕', 'Eliminar utilizador', 'danger', function(){
       if (!confirm('Eliminar utilizador "' + u.nome + '"? Perde o acesso com este PIN.')) return;
       dashCache.users = dashCache.users.filter(function(x){ return x.pinHash !== u.pinHash; });
       renderAllAdminTabs();
       toast('Utilizador eliminado.');
       bgRun_('api_adminDeleteUser', adminState.token, u.pinHash);
-    });
-    actions.appendChild(del);
+    }));
     tbody.appendChild(tr);
   });
 }
@@ -2259,7 +2416,7 @@ function renderStockTab(){
 
   if (!rows.length){
     var tr0 = document.createElement('tr');
-    var td0 = document.createElement('td'); td0.colSpan = 6; td0.className = 'muted'; td0.textContent = 'Sem resultados.';
+    var td0 = document.createElement('td'); td0.colSpan = 7; td0.className = 'muted'; td0.textContent = 'Sem resultados.';
     tr0.appendChild(td0); tbody.appendChild(tr0);
     return;
   }
@@ -2268,13 +2425,28 @@ function renderStockTab(){
     var low = isLowStock_(it);
     var tr = document.createElement('tr');
     if (low) tr.className = 'low';
-    tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td>';
+    tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>';
     tr.children[0].textContent = it.armarioNome;
     tr.children[1].textContent = it.nome;
     tr.children[2].textContent = it.categoria === 'consumivel' ? 'consumível' : 'equipamento';
     tr.children[3].textContent = fmtQty(it.stockInicial) + ' ' + unitLabel(it.unidade);
     tr.children[4].textContent = it.limiteMinimo > 0 ? (fmtQty(it.limiteMinimo) + ' ' + unitLabel(it.unidade)) : '—';
     tr.children[5].textContent = fmtQty(it.saldo) + ' ' + unitLabel(it.unidade) + (low ? ' ⚠️' : '') + (it.indisponivel > 0 ? ' (' + fmtQty(it.indisponivel) + ' indisponível)' : '');
+    tableActionsCell_(tr, 6).appendChild(rowModalBtn_({
+      kicker: 'Stock',
+      title: it.nome,
+      subtitle: it.armarioNome,
+      details: [
+        { label: 'Valência', value: it.armarioNome, wide: true },
+        { label: 'Item', value: it.nome, wide: true },
+        { label: 'Categoria', value: it.categoria === 'consumivel' ? 'Consumível' : 'Equipamento' },
+        { label: 'Unidade', value: unitLabel(it.unidade) },
+        { label: 'Existência inicial', value: fmtQty(it.stockInicial) + ' ' + unitLabel(it.unidade) },
+        { label: 'Limite mínimo', value: it.limiteMinimo > 0 ? fmtQty(it.limiteMinimo) + ' ' + unitLabel(it.unidade) : 'Sem aviso' },
+        { label: 'Saldo atual', value: fmtQty(it.saldo) + ' ' + unitLabel(it.unidade) + (low ? ' ⚠️ abaixo do limite' : '') },
+        { label: 'Indisponível', value: it.indisponivel > 0 ? fmtQty(it.indisponivel) + ' ' + unitLabel(it.unidade) + ' (danificado)' : '—' }
+      ]
+    }, false));
     tbody.appendChild(tr);
   });
 }
@@ -2292,13 +2464,13 @@ function renderOutstandingTab(){
 
   if (!list.length){
     var tr0 = document.createElement('tr');
-    var td0 = document.createElement('td'); td0.colSpan = 6; td0.className = 'muted'; td0.textContent = 'Nada por devolver neste momento.';
+    var td0 = document.createElement('td'); td0.colSpan = 7; td0.className = 'muted'; td0.textContent = 'Nada por devolver neste momento.';
     tr0.appendChild(td0); tbody.appendChild(tr0);
     return;
   }
   list.slice().sort(function(x, y){ return (y.atraso ? 1 : 0) - (x.atraso ? 1 : 0); }).forEach(function(o){
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td>';
+    tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>';
     if (o.atraso) tr.className = 'low';
     var chk = document.createElement('input'); chk.type = 'checkbox'; chk.style.width = 'auto';
     chk.dataset.key = o.itemId + '|' + o.pinHash;
@@ -2311,6 +2483,20 @@ function renderOutstandingTab(){
       tr.children[5].textContent = fmtPrazo_(o.prazo) + ' ';
       if (o.atraso){ var b = document.createElement('span'); b.className = 'badge low'; b.textContent = 'em atraso'; tr.children[5].appendChild(b); }
     } else tr.children[5].textContent = '—';
+    tableActionsCell_(tr, 6).appendChild(rowModalBtn_({
+      kicker: 'Material por devolver',
+      title: o.itemNome,
+      subtitle: o.armarioNome,
+      details: [
+        { label: 'Valência', value: o.armarioNome, wide: true },
+        { label: 'Item', value: o.itemNome, wide: true },
+        { label: 'Pessoa', value: o.nomeUser },
+        { label: 'Perfil', value: roleLabel(o.role) },
+        { label: 'Quantidade', value: fmtQty(o.qty) + ' ' + unitLabel(o.unidade) },
+        { label: 'Prazo de devolução', value: o.prazo ? fmtPrazo_(o.prazo) : 'Sem prazo' },
+        { label: 'Estado', value: o.atraso ? 'Em atraso' : 'Dentro do prazo' }
+      ]
+    }, false));
     tbody.appendChild(tr);
   });
 }
@@ -2399,36 +2585,49 @@ function renderHistTab(){
     else if (m.tipo === 'levantamento' && m.prazo){ est.textContent = 'até ' + fmtPrazo_(m.prazo); }
     else { est.textContent = (m.tipo === 'devolucao' ? 'ok' : '—'); }
 
-    var actions = tr.children[8];
-    var pdfBtn = document.createElement('button');
-    pdfBtn.textContent = '📄'; pdfBtn.className = 'btn secondary'; pdfBtn.type = 'button';
-    pdfBtn.title = 'Exportar só este movimento em PDF';
-    pdfBtn.style.cssText = 'margin-top:0;padding:4px 9px;font-size:12px';
-    pdfBtn.addEventListener('click', function(){
-      exportPdf_([m.id], 'movimento-cte', true);
-    });
-    var editBtn = document.createElement('button');
-    editBtn.textContent = '✎'; editBtn.className = 'btn secondary'; editBtn.type = 'button';
-    editBtn.title = 'Corrigir quantidade';
-    editBtn.style.cssText = 'margin-top:0;padding:4px 9px;font-size:12px';
-    editBtn.addEventListener('click', function(){
-      var novaQtd = prompt('Corrigir quantidade de "' + m.itemNome + '" (' + tipoLabel(m.tipo) + '):', m.quantidade);
-      if (novaQtd === null) return;
-      var q = Number(novaQtd);
-      if (!q || q <= 0){ toast('Quantidade inválida.'); return; }
-      var delta = q - m.quantidade;
-      adjustStockSaldo_(m.itemId, movementSign_(m.tipo) * delta);
-      m.quantidade = q;
-      tr.children[4].textContent = fmtQty(q) + ' ' + unitLabel(m.unidade);
-      renderAllAdminTabs(true);
-      toast('Movimento corrigido.');
-      bgRun_('api_adminUpdateMovementQty', adminState.token, m.id, q);
-    });
-    var delBtn = document.createElement('button');
-    delBtn.textContent = '✕'; delBtn.className = 'btn danger'; delBtn.type = 'button';
-    delBtn.title = 'Eliminar movimento';
-    delBtn.style.cssText = 'margin-top:0;padding:4px 9px;font-size:12px';
-    delBtn.addEventListener('click', function(){
+    var ac = tableActionsCell_(tr, 8);
+    ac.appendChild(rowModalBtn_({
+      kicker: 'Histórico de movimentos',
+      title: m.itemNome,
+      subtitle: m.armarioNome + ' · ' + tipoLabel(m.tipo),
+      details: [
+        { label: 'Data/Hora', value: fmtDateTime(m.timestamp) },
+        { label: 'Tipo', value: tipoLabel(m.tipo) },
+        { label: 'Valência', value: m.armarioNome },
+        { label: 'Item', value: m.itemNome },
+        { label: 'Quantidade', value: fmtQty(m.quantidade) + ' ' + unitLabel(m.unidade) },
+        { label: 'Pessoa', value: m.nomeUser },
+        { label: 'Perfil', value: roleLabel(m.role) },
+        { label: 'Estado', value: m.estado === 'danificado' ? 'Danificado' : (m.estado === 'reposto_admin' ? 'Reposto pelo admin' : (m.estado || '—')) },
+        { label: 'Prazo de devolução', value: m.prazo ? fmtPrazo_(m.prazo) : '—' },
+        { label: 'Funcional?', value: m.danoFuncional ? funcLabel(m.danoFuncional) : '' },
+        { label: 'Como aconteceu', value: m.danoComo || '', wide: true },
+        { label: 'O que aconteceu', value: m.danoOcorrencia || '', wide: true },
+        { label: 'Danificado assinalado em', value: m.danoMarcadoEm ? fmtDateTime(m.danoMarcadoEm) : '' },
+        { label: 'Origem da devolução', value: m.devolucaoOrigem === 'admin' ? 'Feita pelo administrador' : (m.devolucaoOrigem ? 'Normal' : '') },
+        { label: 'Categoria', value: m.categoria === 'consumivel' ? 'Consumível' : (m.categoria ? 'Equipamento' : '') }
+      ],
+      fields: [
+        { key: 'quantidade', label: 'Corrigir quantidade (' + unitLabel(m.unidade) + ')', type: 'number', value: m.quantidade, min: 0, step: 'any' }
+      ],
+      saveLabel: 'Guardar correção',
+      onSave: function(v, fail){
+        var q = Number(v.quantidade);
+        if (!q || q <= 0){ fail('Indica uma quantidade válida.'); return; }
+        var delta = q - m.quantidade;
+        adjustStockSaldo_(m.itemId, movementSign_(m.tipo) * delta);
+        m.quantidade = q;
+        closeRowModal_();
+        renderAllAdminTabs(true);
+        toast('Movimento corrigido.');
+        bgRun_('api_adminUpdateMovementQty', adminState.token, m.id, q);
+      },
+      actions: [
+        { label: '📄 PDF deste movimento', onClick: function(){ exportPdf_([m.id], 'movimento-cte', true); } }
+      ]
+    }, true));
+    ac.appendChild(actBtn_('📄', 'Exportar só este movimento em PDF', '', function(){ exportPdf_([m.id], 'movimento-cte', true); }));
+    ac.appendChild(actBtn_('✕', 'Eliminar movimento', 'danger', function(){
       if (!confirm('Eliminar este movimento? O saldo é recalculado automaticamente.')) return;
       adjustStockSaldo_(m.itemId, -movementSign_(m.tipo) * m.quantidade);
       dashCache.movements = dashCache.movements.filter(function(x){ return x.id !== m.id; });
@@ -2437,8 +2636,7 @@ function renderHistTab(){
       renderAllAdminTabs(true);
       toast('Movimento eliminado.');
       bgRun_('api_adminDeleteMovement', adminState.token, m.id);
-    });
-    actions.appendChild(pdfBtn); actions.appendChild(editBtn); actions.appendChild(delBtn);
+    }));
     tbody.appendChild(tr);
   });
 }
@@ -2525,19 +2723,31 @@ function renderNotifyLog_(){
     if (!res.ok) return;
     if (!res.log.length){
       var tr0 = document.createElement('tr'); var td0 = document.createElement('td');
-      td0.colSpan = 5; td0.className = 'muted'; td0.textContent = 'Ainda não houve nenhuma tentativa de envio.';
+      td0.colSpan = 6; td0.className = 'muted'; td0.textContent = 'Ainda não houve nenhuma tentativa de envio.';
       tr0.appendChild(td0); tbody.appendChild(tr0); return;
     }
     var tipos = { danificado: 'danificado', stock_baixo: 'stock baixo', teste: 'teste', pin: 'PIN', resumo: 'resumo semanal', backup: 'cópia de segurança', pedido: 'pedido de requisição', atraso: 'lembrete de atraso', feedback: 'feedback de professor', bug: 'bug do sistema' };
     var resultados = { enviado: '✅ enviado', erro: '❌ erro', ignorado: '⚠️ ignorado' };
     res.log.forEach(function(l){
       var tr = document.createElement('tr');
-      tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td>';
+      tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td>';
       tr.children[0].textContent = fmtDateTime(l.timestamp);
       tr.children[1].textContent = tipos[l.tipo] || l.tipo;
       tr.children[2].textContent = l.destinatario || '—';
       tr.children[3].textContent = resultados[l.resultado] || l.resultado;
       tr.children[4].textContent = l.detalhe || '';
+      tableActionsCell_(tr, 5).appendChild(rowModalBtn_({
+        kicker: 'Registo de envios',
+        title: tipos[l.tipo] || l.tipo,
+        subtitle: fmtDateTime(l.timestamp),
+        details: [
+          { label: 'Data/Hora', value: fmtDateTime(l.timestamp) },
+          { label: 'Tipo', value: tipos[l.tipo] || l.tipo },
+          { label: 'Destinatário', value: l.destinatario || '—', wide: true },
+          { label: 'Resultado', value: resultados[l.resultado] || l.resultado },
+          { label: 'Detalhe', value: l.detalhe || '—', wide: true }
+        ]
+      }, false));
       tbody.appendChild(tr);
     });
   }).catch(function(){});
@@ -2748,12 +2958,12 @@ function renderDamagedTab(){
   });
   if (!rows.length){
     var tr0 = document.createElement('tr'); var td0 = document.createElement('td');
-    td0.colSpan = 9; td0.className = 'muted'; td0.textContent = list.length ? 'Sem resultados com estes filtros.' : 'Ainda não há equipamento danificado.';
+    td0.colSpan = 10; td0.className = 'muted'; td0.textContent = list.length ? 'Sem resultados com estes filtros.' : 'Ainda não há equipamento danificado.';
     tr0.appendChild(td0); tbody.appendChild(tr0); return;
   }
   rows.forEach(function(d){
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>';
+    tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>';
     if (isDmgOpen_(d)) tr.className = 'low';
     tr.children[0].textContent = fmtDateTime(d.timestamp);
     tr.children[1].textContent = d.armarioNome;
@@ -2765,30 +2975,40 @@ function renderDamagedTab(){
     tr.children[6].textContent = desc;
     tr.children[6].style.cssText = 'max-width:320px;white-space:normal';
 
-    var sel = document.createElement('select');
-    sel.style.cssText = 'margin:0;min-width:130px';
-    Object.keys(DMG_LABELS).forEach(function(k){
-      var o = document.createElement('option'); o.value = k; o.textContent = DMG_LABELS[k]; sel.appendChild(o);
-    });
-    sel.value = d.estadoReparacao;
-    sel.addEventListener('change', function(){
-      var novo = sel.value;
-      if (novo === 'abatido' && !confirm('Abater "' + d.itemNome + '"? Deixa de contar para o stock disponível.')){ sel.value = d.estadoReparacao; return; }
-      setDamageStatus_(d, novo, null);
-    });
-    tr.children[7].appendChild(sel);
+    tr.children[7].textContent = DMG_LABELS[d.estadoReparacao] || d.estadoReparacao;
+    tr.children[8].textContent = d.nota || '—';
+    tr.children[8].style.cssText = 'max-width:220px;white-space:normal';
 
-    var nota = document.createElement('div'); nota.className = 'muted'; nota.style.cssText = 'white-space:normal;max-width:200px';
-    nota.textContent = d.nota || '';
-    var nb = document.createElement('button');
-    nb.textContent = '✎ Nota'; nb.className = 'btn secondary'; nb.type = 'button';
-    nb.style.cssText = 'margin-top:4px;padding:4px 9px;font-size:11px';
-    nb.addEventListener('click', function(){
-      var novo = prompt('Nota sobre "' + d.itemNome + '" (ex.: enviado para reparação, peça encomendada):', d.nota || '');
-      if (novo === null) return;
-      setDamageStatus_(d, d.estadoReparacao, novo);
-    });
-    tr.children[8].appendChild(nota); tr.children[8].appendChild(nb);
+    // Estado e nota de reparação alteram-se na janela de detalhes.
+    tableActionsCell_(tr, 9).appendChild(rowModalBtn_({
+      kicker: 'Equipamento danificado',
+      title: d.itemNome,
+      subtitle: d.armarioNome + ' · ' + (DMG_LABELS[d.estadoReparacao] || d.estadoReparacao),
+      details: [
+        { label: 'Devolvido em', value: fmtDateTime(d.timestamp) },
+        { label: 'Estado da reparação', value: DMG_LABELS[d.estadoReparacao] || d.estadoReparacao },
+        { label: 'Valência', value: d.armarioNome },
+        { label: 'Item', value: d.itemNome },
+        { label: 'Quantidade', value: fmtQty(d.quantidade) + ' ' + unitLabel(d.unidade) },
+        { label: 'Devolvido por', value: d.nomeUser },
+        { label: 'Funcional?', value: d.danoFuncional ? funcLabel(d.danoFuncional) : '—' },
+        { label: 'Como aconteceu', value: d.danoComo || '—', wide: true },
+        { label: 'O que aconteceu', value: d.danoOcorrencia || '—', wide: true },
+        { label: 'Assinalado em', value: d.marcadoEm ? fmtDateTime(d.marcadoEm) : '' },
+        { label: 'Origem', value: d.origem === 'admin' ? 'Devolução feita pelo administrador' : 'Devolução normal' },
+        { label: 'Nota do responsável', value: d.nota || '—', wide: true }
+      ],
+      fields: [
+        { key: 'estado', label: 'Estado da reparação', type: 'select', value: d.estadoReparacao,
+          options: Object.keys(DMG_LABELS).map(function(k){ return { value: k, label: DMG_LABELS[k] }; }) },
+        { key: 'nota', label: 'Nota do responsável', type: 'textarea', value: d.nota || '', maxlength: 300, placeholder: 'ex.: enviado para reparação, peça encomendada' }
+      ],
+      onSave: function(v){
+        if (v.estado === 'abatido' && d.estadoReparacao !== 'abatido' && !confirm('Abater "' + d.itemNome + '"? Deixa de contar para o stock disponível.')) return;
+        closeRowModal_();
+        setDamageStatus_(d, v.estado, v.nota);
+      }
+    }, true));
     tbody.appendChild(tr);
   });
 }
@@ -2985,7 +3205,18 @@ function renderBackupStatus_(res){
   res.backups.forEach(function(b){
     var tr = document.createElement('tr'); tr.innerHTML = '<td></td><td></td><td></td>';
     tr.children[0].textContent = b.name; tr.children[1].textContent = fmtDateTime(b.date);
-    var a = document.createElement('a'); a.href = b.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Abrir'; a.style.color = 'var(--mint)';
+    var ac = tableActionsCell_(tr, 2);
+    ac.appendChild(rowModalBtn_({
+      kicker: 'Cópias de segurança',
+      title: b.name,
+      subtitle: fmtDateTime(b.date),
+      details: [
+        { label: 'Cópia', value: b.name, wide: true },
+        { label: 'Data', value: fmtDateTime(b.date) }
+      ],
+      actions: [{ label: '↗ Abrir no Drive', onClick: function(){ window.open(b.url, '_blank', 'noopener'); } }]
+    }, false));
+    var a = document.createElement('a'); a.href = b.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Abrir'; a.style.cssText = 'margin-left:8px;color:var(--mint);font-size:12.5px';
     tr.children[2].appendChild(a); tbody.appendChild(tr);
   });
 }
@@ -3425,20 +3656,48 @@ function renderRequestsTab(){
     tr.children[6].appendChild(st);
     if (r.estado === 'aceite' && r.prazo){ var p = document.createElement('div'); p.className = 'muted'; p.textContent = 'devolver até ' + fmtPrazo_(r.prazo); tr.children[6].appendChild(p); }
     if (r.nota){ var n = document.createElement('div'); n.className = 'muted'; n.style.whiteSpace = 'normal'; n.textContent = 'Nota: ' + r.nota; tr.children[6].appendChild(n); }
+    function aceitarPedido_(){
+      if (!confirm('Aceitar o pedido de ' + r.nomeUser + '?\nFica registada a requisição de ' + fmtQty(r.quantidade) + ' ' + unitLabel(r.unidade) + ' de "' + r.itemNome + '", a devolver até ' + fmtPrazo_(r.prazoPrevisto) + '.')) return;
+      closeRowModal_();
+      decideRequest_(r, true, '');
+    }
+    function recusarPedido_(){
+      var nota = prompt('Motivo da recusa (opcional — a pessoa recebe-o por email, se tiver email):', '');
+      if (nota === null) return;
+      closeRowModal_();
+      decideRequest_(r, false, nota);
+    }
+
+    var ac = tableActionsCell_(tr, 7);
+    var comandos = [];
     if (r.estado === 'pendente'){
-      var ok = document.createElement('button'); ok.className = 'btn'; ok.type = 'button'; ok.textContent = 'Aceitar'; ok.style.cssText = 'margin-top:0;padding:6px 12px;font-size:12px';
-      var no = document.createElement('button'); no.className = 'btn danger'; no.type = 'button'; no.textContent = 'Recusar'; no.style.cssText = 'margin:0 0 0 6px;padding:6px 12px;font-size:12px';
-      ok.addEventListener('click', function(){
-        if (!confirm('Aceitar o pedido de ' + r.nomeUser + '?\nFica registada a requisição de ' + fmtQty(r.quantidade) + ' ' + unitLabel(r.unidade) + ' de "' + r.itemNome + '", a devolver até ' + fmtPrazo_(r.prazoPrevisto) + '.')) return;
-        decideRequest_(r, true, '');
-      });
-      no.addEventListener('click', function(){
-        var nota = prompt('Motivo da recusa (opcional — a pessoa recebe-o por email, se tiver email):', '');
-        if (nota === null) return;
-        decideRequest_(r, false, nota);
-      });
-      tr.children[7].appendChild(ok); tr.children[7].appendChild(no);
-    } else tr.children[7].textContent = r.decididoEm ? fmtDateTime(r.decididoEm) : '—';
+      comandos.push({ label: '✓ Aceitar', className: 'btn', onClick: aceitarPedido_ });
+      comandos.push({ label: '✕ Recusar', className: 'btn danger', onClick: recusarPedido_ });
+    }
+    ac.appendChild(rowModalBtn_({
+      kicker: 'Pedidos de requisição',
+      title: r.itemNome,
+      subtitle: r.nomeUser + ' · ' + (REQ_LABELS[r.estado] || r.estado),
+      details: [
+        { label: 'Pedido em', value: fmtDateTime(r.criadoEm) },
+        { label: 'Estado', value: REQ_LABELS[r.estado] || r.estado },
+        { label: 'Pessoa', value: r.nomeUser },
+        { label: 'Perfil', value: roleLabel(r.role) },
+        { label: 'Equipamento', value: r.itemNome, wide: true },
+        { label: 'Valência', value: r.armarioNome, wide: true },
+        { label: 'Quantidade', value: fmtQty(r.quantidade) + ' ' + unitLabel(r.unidade) },
+        { label: 'Tempo pedido', value: r.dias + ' dias' },
+        { label: 'Motivo', value: r.motivo, wide: true },
+        { label: 'Decidido em', value: r.decididoEm ? fmtDateTime(r.decididoEm) : '' },
+        { label: 'Prazo de devolução', value: r.prazo ? fmtPrazo_(r.prazo) : '' },
+        { label: 'Nota da decisão', value: r.nota || '', wide: true }
+      ],
+      actions: comandos
+    }, false));
+    if (r.estado === 'pendente'){
+      ac.appendChild(actBtn_('✓', 'Aceitar pedido', 'primary', aceitarPedido_));
+      ac.appendChild(actBtn_('✕', 'Recusar pedido', 'danger', recusarPedido_));
+    }
     tbody.appendChild(tr);
   });
 }
@@ -3710,32 +3969,6 @@ var FB_TIPOS = { bug: 'Bug do sistema', danificado: 'Equipamento danificado', me
 var FB_ESTADOS = { novo: 'Novo', visto: 'Visto', tratado: 'Tratado' };
 var BUG_SEV_LABELS = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
 
-function abrirBugDetalhes_(x){
-  var linhas = [
-    'Data: ' + fmtDateTime(x.criadoEm),
-    'Pessoa: ' + (x.nomeUser || '—'),
-    'Ecrã: ' + (x.origem || '—'),
-    'Gravidade: ' + (BUG_SEV_LABELS[x.severidade] || '—'),
-    'Contacto: ' + (x.contacto || '—'),
-    'Estado: ' + (FB_ESTADOS[x.estado] || x.estado || '—'),
-    '',
-    'Mensagem:',
-    x.mensagem || '—',
-    '',
-    'Contexto técnico:',
-    x.contexto || '—'
-  ];
-  document.getElementById('bug-detail-body').textContent = linhas.join('\n');
-  modalFocoGuardar_('bug-detail-modal');
-  document.getElementById('bug-detail-modal').classList.remove('hidden');
-  document.body.classList.add('em-modal-open');
-  var b = document.getElementById('bug-detail-close'); if (b && b.focus) b.focus();
-}
-function fecharBugDetalhes_(){
-  document.getElementById('bug-detail-modal').classList.add('hidden');
-  document.body.classList.remove('em-modal-open');
-  modalFocoRestaurar_('bug-detail-modal');
-}
 
 function renderFbTab_(){
   if (!dashCache) return;
@@ -3757,13 +3990,13 @@ function renderFbTab_(){
   });
   if (!rows.length){
     var tr0 = document.createElement('tr'), td0 = document.createElement('td');
-    td0.colSpan = 6; td0.className = 'muted'; td0.textContent = list.length ? 'Sem resultados com estes filtros.' : 'Ainda não há feedback nem bugs.';
+    td0.colSpan = 7; td0.className = 'muted'; td0.textContent = list.length ? 'Sem resultados com estes filtros.' : 'Ainda não há feedback nem bugs.';
     tr0.appendChild(td0); tbody.appendChild(tr0); return;
   }
   rows.forEach(function(x){
     var isBug = x.tipo === 'bug';
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td>';
+    tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>';
     if (x.estado === 'novo') tr.className = 'low';
     tr.children[0].textContent = fmtDateTime(x.criadoEm);
     tr.children[1].textContent = x.nomeUser || '—';
@@ -3771,25 +4004,36 @@ function renderFbTab_(){
       ? '🐞 Bug · ' + (BUG_SEV_LABELS[x.severidade] || 'Média')
       : (FB_TIPOS[x.tipo] || x.tipo);
     tr.children[3].textContent = isBug ? (x.origem || '—') : ([x.armarioNome, x.itemNome].filter(Boolean).join(' — ') || '—');
-    if (isBug && (x.contexto || x.contacto)){
-      var det = document.createElement('button');
-      det.type = 'button'; det.className = 'btn secondary'; det.textContent = 'Detalhes';
-      det.style.cssText = 'margin:4px 0 0;padding:2px 9px;font-size:11.5px;min-height:0';
-      det.addEventListener('click', function(){ abrirBugDetalhes_(x); });
-      tr.children[3].appendChild(det);
-    }
     tr.children[4].textContent = x.mensagem;
     tr.children[4].style.cssText = 'max-width:360px;white-space:normal';
-    var sel = document.createElement('select'); sel.style.cssText = 'margin:0;min-width:110px';
-    Object.keys(FB_ESTADOS).forEach(function(k){ var o = document.createElement('option'); o.value = k; o.textContent = FB_ESTADOS[k]; sel.appendChild(o); });
-    sel.value = x.estado;
-    sel.addEventListener('change', function(){
-      x.estado = sel.value;
-      renderAllAdminTabs();
-      toast('Estado atualizado.');
-      bgRun_('api_adminSetFeedbackState', adminState.token, x.id, x.estado);
-    });
-    tr.children[5].appendChild(sel);
+    tr.children[5].textContent = FB_ESTADOS[x.estado] || x.estado;
+
+    // O estado muda-se na janela de detalhes, nunca na linha.
+    tableActionsCell_(tr, 6).appendChild(rowModalBtn_({
+      kicker: isBug ? 'Bug do sistema' : 'Feedback',
+      title: x.nomeUser || 'Sem nome',
+      subtitle: isBug ? ('🐞 Bug · ' + (BUG_SEV_LABELS[x.severidade] || 'Média')) : (FB_TIPOS[x.tipo] || x.tipo),
+      details: [
+        { label: 'Data', value: fmtDateTime(x.criadoEm) },
+        { label: 'Pessoa', value: x.nomeUser || '—' },
+        { label: 'Tipo', value: isBug ? ('Bug · ' + (BUG_SEV_LABELS[x.severidade] || 'Média')) : (FB_TIPOS[x.tipo] || x.tipo) },
+        { label: 'Onde', value: isBug ? (x.origem || '—') : ([x.armarioNome, x.itemNome].filter(Boolean).join(' — ') || '—') },
+        { label: 'Contacto', value: x.contacto || '' },
+        { label: 'Estado', value: FB_ESTADOS[x.estado] || x.estado },
+        { label: 'Mensagem', value: x.mensagem, wide: true },
+        { label: 'Contexto técnico', value: x.contexto || '', wide: true }
+      ],
+      fields: [
+        { key: 'estado', label: 'Estado', type: 'select', value: x.estado, options: Object.keys(FB_ESTADOS).map(function(k){ return { value: k, label: FB_ESTADOS[k] }; }) }
+      ],
+      onSave: function(v){
+        x.estado = v.estado;
+        closeRowModal_();
+        renderAllAdminTabs();
+        toast('Estado atualizado.');
+        bgRun_('api_adminSetFeedbackState', adminState.token, x.id, x.estado);
+      }
+    }, true));
     tbody.appendChild(tr);
   });
 }
@@ -3797,8 +4041,6 @@ function renderFbTab_(){
   document.getElementById(id).addEventListener('input', renderFbTab_);
   document.getElementById(id).addEventListener('change', renderFbTab_);
 });
-document.getElementById('bug-detail-close').addEventListener('click', fecharBugDetalhes_);
-document.getElementById('bug-detail-modal').addEventListener('click', function(e){ if (e.target === this) fecharBugDetalhes_(); });
 document.getElementById('prof-link-copy').addEventListener('click', function(){
   var t = document.getElementById('prof-link').textContent;
   try{ navigator.clipboard.writeText(t).then(function(){ toast('Link copiado.'); }, function(){ toast('Seleciona e copia o link manualmente.'); }); }
@@ -4168,16 +4410,29 @@ function renderProfDmg_(){
   var d = profState.data; if (!d) return;
   var tbody = document.querySelector('#pdmg-table tbody'); tbody.innerHTML = '';
   if (!d.danificados.length){
-    var tr0 = document.createElement('tr'), td0 = document.createElement('td'); td0.colSpan = 5; td0.className = 'muted'; td0.textContent = 'Ainda não assinalaste nenhum equipamento como danificado.';
+    var tr0 = document.createElement('tr'), td0 = document.createElement('td'); td0.colSpan = 6; td0.className = 'muted'; td0.textContent = 'Ainda não assinalaste nenhum equipamento como danificado.';
     tr0.appendChild(td0); tbody.appendChild(tr0); return;
   }
   d.danificados.forEach(function(x){
-    var tr = document.createElement('tr'); tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td>';
+    var tr = document.createElement('tr'); tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td>';
     tr.children[0].textContent = fmtDateTime(x.timestamp);
     tr.children[1].textContent = x.itemNome + ' — ' + x.armarioNome;
     tr.children[2].textContent = fmtQty(x.quantidade) + ' ' + unitLabel(x.unidade);
     tr.children[3].textContent = DMG_LABELS[x.estadoReparacao] || x.estadoReparacao;
     tr.children[4].textContent = x.nota || '—'; tr.children[4].style.cssText = 'max-width:260px;white-space:normal';
+    tableActionsCell_(tr, 5).appendChild(rowModalBtn_({
+      kicker: 'Equipamento danificado',
+      title: x.itemNome,
+      subtitle: x.armarioNome + ' · ' + (DMG_LABELS[x.estadoReparacao] || x.estadoReparacao),
+      details: [
+        { label: 'Devolvido em', value: fmtDateTime(x.timestamp) },
+        { label: 'Estado da reparação', value: DMG_LABELS[x.estadoReparacao] || x.estadoReparacao },
+        { label: 'Valência', value: x.armarioNome },
+        { label: 'Item', value: x.itemNome },
+        { label: 'Quantidade', value: fmtQty(x.quantidade) + ' ' + unitLabel(x.unidade) },
+        { label: 'Nota do responsável', value: x.nota || '—', wide: true }
+      ]
+    }, false));
     tbody.appendChild(tr);
   });
 }
@@ -4238,17 +4493,31 @@ function renderProfRes_(){
     tr.children[1].textContent = fmtQty(r.quantidade) + ' ' + unitLabel(r.unidade);
     tr.children[2].textContent = fmtDateTime(r.inicio) + ' → ' + fmtDateTime(r.fim);
     tr.children[3].textContent = ef.charAt(0).toUpperCase() + ef.slice(1);
-    if (ef === 'ativa'){
-      var c = document.createElement('button'); c.type = 'button'; c.className = 'btn danger'; c.textContent = 'Cancelar'; c.style.cssText = 'margin:0;padding:4px 10px;font-size:12px';
-      c.addEventListener('click', function(){
-        if (!confirm('Cancelar a reserva de "' + r.itemNome + '"?')) return;
-        gsRun('api_profCancelarReserva', profState.token, r.id).then(function(res){
-          if (!res.ok){ if (res.error === 'sessao_invalida') profExpired_(); else toast('Não foi possível cancelar.'); return; }
-          toast('Reserva cancelada.'); loadProf_();
-        }).catch(function(){ toast('Erro de ligação.'); });
-      });
-      tr.children[4].appendChild(c);
+    function cancelar_(){
+      if (!confirm('Cancelar a reserva de "' + r.itemNome + '"?')) return;
+      closeRowModal_();
+      gsRun('api_profCancelarReserva', profState.token, r.id).then(function(res){
+        if (!res.ok){ if (res.error === 'sessao_invalida') profExpired_(); else toast('Não foi possível cancelar.'); return; }
+        toast('Reserva cancelada.'); loadProf_();
+      }).catch(function(){ toast('Erro de ligação.'); });
     }
+    var ac = tableActionsCell_(tr, 4);
+    ac.appendChild(rowModalBtn_({
+      kicker: 'As minhas reservas',
+      title: r.itemNome,
+      subtitle: r.armarioNome + ' · ' + ef.charAt(0).toUpperCase() + ef.slice(1),
+      details: [
+        { label: 'Equipamento', value: r.itemNome, wide: true },
+        { label: 'Valência', value: r.armarioNome, wide: true },
+        { label: 'Quantidade', value: fmtQty(r.quantidade) + ' ' + unitLabel(r.unidade) },
+        { label: 'Estado', value: ef.charAt(0).toUpperCase() + ef.slice(1) },
+        { label: 'Início', value: fmtDateTime(r.inicio) },
+        { label: 'Fim', value: fmtDateTime(r.fim) },
+        { label: 'Motivo', value: r.motivo || '—', wide: true }
+      ],
+      actions: ef === 'ativa' ? [{ label: '✕ Cancelar reserva', className: 'btn danger', onClick: cancelar_ }] : []
+    }, false));
+    if (ef === 'ativa') ac.appendChild(actBtn_('✕', 'Cancelar reserva', 'danger', cancelar_));
     tbody.appendChild(tr);
   });
 }
@@ -4335,11 +4604,11 @@ function renderProfHistMov_(){
   document.getElementById('phist-summary').textContent = rows.length + ' registo' + (rows.length === 1 ? '' : 's') + (rows.length > 300 ? ' (a mostrar os 300 mais recentes; a exportação leva todos)' : '');
   var tbody = document.querySelector('#phist-table tbody'); tbody.innerHTML = '';
   if (!rows.length){
-    var tr0 = document.createElement('tr'), td0 = document.createElement('td'); td0.colSpan = 6; td0.className = 'muted'; td0.textContent = 'Sem registos.';
+    var tr0 = document.createElement('tr'), td0 = document.createElement('td'); td0.colSpan = 7; td0.className = 'muted'; td0.textContent = 'Sem registos.';
     tr0.appendChild(td0); tbody.appendChild(tr0); return;
   }
   rows.slice(0, 300).forEach(function(m){
-    var tr = document.createElement('tr'); tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td>';
+    var tr = document.createElement('tr'); tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>';
     tr.children[0].textContent = fmtDateTime(m.timestamp);
     tr.children[1].textContent = m.armarioNome; tr.children[2].textContent = m.itemNome;
     tr.children[3].textContent = tipoLabel(m.tipo);
@@ -4347,6 +4616,22 @@ function renderProfHistMov_(){
     if (m.estado === 'danificado') tr.children[5].innerHTML = '<span class="badge low">danificado</span>';
     else if (m.tipo === 'levantamento' && m.prazo) tr.children[5].textContent = 'até ' + fmtPrazo_(m.prazo);
     else tr.children[5].textContent = m.tipo === 'devolucao' ? 'ok' : '—';
+    tableActionsCell_(tr, 6).appendChild(rowModalBtn_({
+      kicker: 'O meu histórico',
+      title: m.itemNome,
+      subtitle: m.armarioNome + ' · ' + tipoLabel(m.tipo),
+      details: [
+        { label: 'Data/Hora', value: fmtDateTime(m.timestamp) },
+        { label: 'Tipo', value: tipoLabel(m.tipo) },
+        { label: 'Valência', value: m.armarioNome },
+        { label: 'Item', value: m.itemNome },
+        { label: 'Quantidade', value: fmtQty(m.quantidade) + ' ' + unitLabel(m.unidade) },
+        { label: 'Estado', value: m.estado === 'danificado' ? 'Danificado' : (m.estado || '—') },
+        { label: 'Devolver até', value: m.prazo ? fmtPrazo_(m.prazo) : '—' },
+        { label: 'Como aconteceu', value: m.danoComo || '', wide: true },
+        { label: 'O que aconteceu', value: m.danoOcorrencia || '', wide: true }
+      ]
+    }, false));
     tbody.appendChild(tr);
   });
 }
@@ -4356,7 +4641,7 @@ function renderProfHistAberturas_(){
   var tbody = document.querySelector('#phist-aberturas-table tbody'); tbody.innerHTML = '';
   if (!profHistAberturasOk){
     var trE = document.createElement('tr'), tdE = document.createElement('td');
-    tdE.colSpan = 6; tdE.className = 'muted';
+    tdE.colSpan = 7; tdE.className = 'muted';
     tdE.textContent = 'Ainda não há dados de aberturas nesta versão do servidor. Reimplanta o Code.gs (nova versão do Web App).';
     trE.appendChild(tdE); tbody.appendChild(trE);
     document.getElementById('phist-summary').textContent = 'Aberturas indisponíveis';
@@ -4364,12 +4649,12 @@ function renderProfHistAberturas_(){
   }
   if (!rows.length){
     var tr0 = document.createElement('tr'), td0 = document.createElement('td');
-    td0.colSpan = 6; td0.className = 'muted';
+    td0.colSpan = 7; td0.className = 'muted';
     td0.textContent = profHistAberturas.length ? 'Sem aberturas com estes filtros.' : 'Ainda não abriste nenhuma sala.';
     tr0.appendChild(td0); tbody.appendChild(tr0); return;
   }
   rows.slice(0, 300).forEach(function(a){
-    var tr = document.createElement('tr'); tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td>';
+    var tr = document.createElement('tr'); tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>';
     tr.children[0].textContent = fmtDateTime(a.inicio);
     tr.children[1].textContent = a.sala || '—';
     tr.children[2].textContent = a.motivo || '—';
@@ -4387,6 +4672,20 @@ function renderProfHistAberturas_(){
       }
       tr.children[5].appendChild(st);
     }
+    tableActionsCell_(tr, 6).appendChild(rowModalBtn_({
+      kicker: 'O meu histórico · aberturas de sala',
+      title: a.sala || 'Sala',
+      subtitle: a.motivo || '—',
+      details: [
+        { label: 'Início', value: fmtDateTime(a.inicio) },
+        { label: 'Sala', value: a.sala || '—' },
+        { label: 'Motivo', value: a.motivo || '—', wide: true },
+        { label: 'Fim previsto', value: a.fimPrevisto ? fmtDateTime(a.fimPrevisto) : '—' },
+        { label: 'Fim efetivo', value: a.fimEfetivo ? fmtDateTime(a.fimEfetivo) : '—' },
+        { label: 'Estado', value: a.estado === 'aberta' ? 'Aberta' : (a.estado || '—') },
+        { label: 'Fechada por', value: a.fechadoPorNome || '—' }
+      ]
+    }, false));
     tbody.appendChild(tr);
   });
 }
@@ -4470,17 +4769,33 @@ function renderRsvTab_(){
     tr.children[3].textContent = fmtDateTime(r.inicio) + ' → ' + fmtDateTime(r.fim);
     tr.children[4].textContent = r.motivo || '—'; tr.children[4].style.cssText = 'max-width:240px;white-space:normal';
     tr.children[5].textContent = r._ef.charAt(0).toUpperCase() + r._ef.slice(1);
-    if (r._ef === 'ativa'){
-      var c = document.createElement('button'); c.type = 'button'; c.className = 'btn danger'; c.textContent = 'Cancelar'; c.style.cssText = 'margin:0;padding:4px 10px;font-size:12px';
-      c.addEventListener('click', function(){
-        if (!confirm('Cancelar a reserva de ' + r.nomeUser + ' (' + r.itemNome + ')?')) return;
-        r.estado = 'cancelada';
-        renderAllAdminTabs();
-        toast('Reserva cancelada.');
-        bgRun_('api_adminCancelarReserva', adminState.token, r.id);
-      });
-      tr.children[6].appendChild(c);
+    function cancelarReserva_(){
+      if (!confirm('Cancelar a reserva de ' + r.nomeUser + ' (' + r.itemNome + ')?')) return;
+      closeRowModal_();
+      r.estado = 'cancelada';
+      renderAllAdminTabs();
+      toast('Reserva cancelada.');
+      bgRun_('api_adminCancelarReserva', adminState.token, r.id);
     }
+    var ac = tableActionsCell_(tr, 6);
+    ac.appendChild(rowModalBtn_({
+      kicker: 'Reservas',
+      title: r.itemNome,
+      subtitle: r.nomeUser + ' · ' + (r._ef.charAt(0).toUpperCase() + r._ef.slice(1)),
+      details: [
+        { label: 'Professor', value: r.nomeUser },
+        { label: 'Estado', value: r._ef.charAt(0).toUpperCase() + r._ef.slice(1) },
+        { label: 'Equipamento', value: r.itemNome, wide: true },
+        { label: 'Valência', value: r.armarioNome, wide: true },
+        { label: 'Quantidade', value: fmtQty(r.quantidade) + ' ' + unitLabel(r.unidade) },
+        { label: 'Pedida em', value: fmtDateTime(r.criadoEm) },
+        { label: 'Início', value: fmtDateTime(r.inicio) },
+        { label: 'Fim', value: fmtDateTime(r.fim) },
+        { label: 'Motivo', value: r.motivo || '—', wide: true }
+      ],
+      actions: r._ef === 'ativa' ? [{ label: '✕ Cancelar reserva', className: 'btn danger', onClick: cancelarReserva_ }] : []
+    }, false));
+    if (r._ef === 'ativa') ac.appendChild(actBtn_('✕', 'Cancelar reserva', 'danger', cancelarReserva_));
     tbody.appendChild(tr);
   });
 }
@@ -4497,16 +4812,28 @@ function renderProfFb_(){
   if (prev && d.cabinets.some(function(c){ return c.id === prev; })) sel.value = prev;
   var tbody = document.querySelector('#pfb-table tbody'); tbody.innerHTML = '';
   if (!d.feedback.length){
-    var tr0 = document.createElement('tr'), td0 = document.createElement('td'); td0.colSpan = 5; td0.className = 'muted'; td0.textContent = 'Ainda não enviaste feedback.';
+    var tr0 = document.createElement('tr'), td0 = document.createElement('td'); td0.colSpan = 6; td0.className = 'muted'; td0.textContent = 'Ainda não enviaste feedback.';
     tr0.appendChild(td0); tbody.appendChild(tr0); return;
   }
   d.feedback.forEach(function(x){
-    var tr = document.createElement('tr'); tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td>';
+    var tr = document.createElement('tr'); tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td>';
     tr.children[0].textContent = fmtDateTime(x.criadoEm);
     tr.children[1].textContent = FB_TIPOS[x.tipo] || x.tipo;
     tr.children[2].textContent = x.tipo === 'bug' ? (x.origem || '—') : ([x.armarioNome, x.itemNome].filter(Boolean).join(' — ') || '—');
     tr.children[3].textContent = x.mensagem; tr.children[3].style.cssText = 'max-width:320px;white-space:normal';
     tr.children[4].textContent = FB_ESTADOS[x.estado] || x.estado;
+    tableActionsCell_(tr, 5).appendChild(rowModalBtn_({
+      kicker: 'Os meus envios',
+      title: FB_TIPOS[x.tipo] || x.tipo,
+      subtitle: fmtDateTime(x.criadoEm),
+      details: [
+        { label: 'Data', value: fmtDateTime(x.criadoEm) },
+        { label: 'Assunto', value: FB_TIPOS[x.tipo] || x.tipo },
+        { label: 'Onde', value: x.tipo === 'bug' ? (x.origem || '—') : ([x.armarioNome, x.itemNome].filter(Boolean).join(' — ') || '—'), wide: true },
+        { label: 'Estado', value: FB_ESTADOS[x.estado] || x.estado },
+        { label: 'Mensagem', value: x.mensagem, wide: true }
+      ]
+    }, false));
     tbody.appendChild(tr);
   });
 }
@@ -4588,93 +4915,58 @@ function renderMobTab_(){
     tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td>';
     if (m.estado === 'mau') tr.className = 'low';
     tr.children[0].textContent = m.nome;
-    var qi = document.createElement('input'); qi.type = 'number'; qi.min = '1'; qi.step = '1'; qi.value = m.quantidade; qi.style.cssText = 'width:70px;margin:0';
-    qi.setAttribute('aria-label', 'Quantidade de ' + m.nome);
-    qi.addEventListener('change', function(){
-      var n = Math.floor(Number(qi.value));
-      if (!n || n < 1){ toast('Quantidade inválida.'); qi.value = m.quantidade; return; }
-      m.quantidade = n; renderAllAdminTabs(); toast('Quantidade atualizada.'); mobSave_(m);
-    });
-    tr.children[1].appendChild(qi);
-    var sel = document.createElement('select'); sel.style.cssText = 'margin:0;width:auto;min-width:130px';
-    Object.keys(MOB_LABELS).forEach(function(k){ var o = document.createElement('option'); o.value = k; o.textContent = MOB_LABELS[k]; sel.appendChild(o); });
-    sel.value = m.estado;
-    sel.addEventListener('change', function(){ m.estado = sel.value; renderAllAdminTabs(); toast('Estado atualizado.'); mobSave_(m); });
-    tr.children[2].appendChild(sel);
+    tr.children[1].textContent = fmtQty(m.quantidade);
+    tr.children[2].textContent = MOB_LABELS[m.estado] || m.estado;
     tr.children[3].textContent = m.notas || '—'; tr.children[3].style.cssText = 'max-width:260px;white-space:normal';
-    var ac = tr.children[4]; ac.className = 'mob-actions';
-    var ed = document.createElement('button'); ed.type = 'button'; ed.className = 'btn secondary'; ed.textContent = '✎'; ed.title = 'Editar nome, sala e notas'; ed.setAttribute('aria-label', 'Editar ' + m.nome); ed.style.cssText = 'margin:0;padding:4px 9px;font-size:12px';
-    ed.addEventListener('click', function(){ openMobEdit_(m); });
-    var del = document.createElement('button'); del.type = 'button'; del.className = 'btn danger'; del.textContent = '✕'; del.title = 'Eliminar'; del.setAttribute('aria-label', 'Eliminar ' + m.nome); del.style.cssText = 'margin:0;padding:4px 9px;font-size:12px';
-    del.addEventListener('click', function(){
+
+    // Todos os campos (quantidade e estado incluídos) editam-se na janela de detalhes.
+    var ac = tableActionsCell_(tr, 4);
+    ac.appendChild(rowModalBtn_({
+      kicker: 'Inventário fixo · ' + m.sala,
+      title: m.nome,
+      subtitle: fmtQty(m.quantidade) + ' unidade' + (Number(m.quantidade) === 1 ? '' : 's') + ' · ' + (MOB_LABELS[m.estado] || m.estado),
+      details: [
+        { label: 'Sala', value: m.sala, wide: true },
+        { label: 'Móvel / equipamento', value: m.nome, wide: true },
+        { label: 'Quantidade', value: fmtQty(m.quantidade) },
+        { label: 'Estado', value: MOB_LABELS[m.estado] || m.estado },
+        { label: 'Registado em', value: m.criadoEm ? fmtDateTime(m.criadoEm) : '' },
+        { label: 'Notas', value: m.notas || '—', wide: true }
+      ],
+      fields: [
+        { key: 'salaId', label: 'Sala', type: 'select', value: m.salaId,
+          options: ((dashCache.salas || []).slice().sort(function(x, y){ return fold(x.nome).localeCompare(fold(y.nome)); })).map(function(s){ return { value: s.id, label: s.nome }; }) },
+        { key: 'nome', label: 'Móvel / equipamento', type: 'text', value: m.nome, maxlength: 150 },
+        { key: 'quantidade', label: 'Quantidade', type: 'number', value: m.quantidade, min: 1, step: 1 },
+        { key: 'estado', label: 'Estado', type: 'select', value: m.estado,
+          options: Object.keys(MOB_LABELS).map(function(k){ return { value: k, label: MOB_LABELS[k] }; }) },
+        { key: 'notas', label: 'Notas', type: 'textarea', value: m.notas || '', maxlength: 300 }
+      ],
+      onSave: function(v, fail){
+        var sala = ((dashCache.salas || []) || []).filter(function(s){ return s.id === v.salaId; })[0];
+        var nome = String(v.nome || '').trim();
+        var qtd = Math.floor(Number(v.quantidade));
+        if (!sala){ fail('Escolhe a sala.'); return; }
+        if (!nome){ fail('O nome não pode ficar vazio.'); return; }
+        if (!qtd || qtd < 1){ fail('Indica uma quantidade válida.'); return; }
+        var mudouSala = sala.id !== m.salaId;
+        m.salaId = sala.id; m.sala = sala.nome; m.nome = nome; m.quantidade = qtd; m.estado = v.estado; m.notas = String(v.notas || '').trim();
+        closeRowModal_();
+        renderAllAdminTabs();
+        toast(mudouSala ? 'Movido para ' + sala.nome + '.' : 'Guardado.');
+        mobSave_(m);
+      }
+    }, true));
+    ac.appendChild(actBtn_('✕', 'Eliminar móvel', 'danger', function(){
       if (!confirm('Eliminar "' + m.nome + '" (' + m.sala + ')?')) return;
       dashCache.mobiliario = dashCache.mobiliario.filter(function(x){ return x.id !== m.id; });
       renderAllAdminTabs(); toast('Eliminado.');
       bgRun_('api_adminMobDelete', adminState.token, [m.id]);
-    });
-    ac.appendChild(ed); ac.appendChild(del);
+    }));
     tbody.appendChild(tr);
   });
 }
 
-/* Edição de uma linha (nome, sala e notas) numa janela própria — mantém a lista estreita. */
-var _mobEditId = null;
-function openMobEdit_(m){
-  var modal = document.getElementById('mob-edit-modal');
-  if (!modal) return;
-  var salas = ((dashCache && dashCache.salas) || []).slice().sort(function(x, y){ return fold(x.nome).localeCompare(fold(y.nome)); });
-  _mobEditId = m.id;
-  var sel = document.getElementById('mob-edit-sala');
-  fillSalaSelect_(sel, salas, '');
-  if (salas.some(function(s){ return s.id === m.salaId; })) sel.value = m.salaId;
-  document.getElementById('mob-edit-nome').value = m.nome || '';
-  document.getElementById('mob-edit-notas').value = m.notas || '';
-  document.getElementById('mob-edit-error').textContent = '';
-  var qty = Number(m.quantidade) || 0;
-  document.getElementById('mob-edit-sub').textContent = m.sala + ' · ' + fmtQty(qty) + ' unidade' + (qty === 1 ? '' : 's') + '. A quantidade e o estado editam-se na lista.';
-  modalFocoGuardar_('mob-edit-modal');
-  modal.classList.remove('hidden');
-  document.body.classList.add('em-modal-open');
-  var nomeInput = document.getElementById('mob-edit-nome');
-  if (nomeInput && nomeInput.focus) nomeInput.focus();
-}
-function closeMobEdit_(){
-  var modal = document.getElementById('mob-edit-modal');
-  if (modal) modal.classList.add('hidden');
-  document.body.classList.remove('em-modal-open');
-  _mobEditId = null;
-  modalFocoRestaurar_('mob-edit-modal');
-}
-function saveMobEdit_(){
-  var m = ((dashCache && dashCache.mobiliario) || []).filter(function(x){ return x.id === _mobEditId; })[0];
-  if (!m){ closeMobEdit_(); return; }
-  var err = document.getElementById('mob-edit-error'); err.textContent = '';
-  var salaId = document.getElementById('mob-edit-sala').value;
-  var sala = ((dashCache.salas) || []).filter(function(s){ return s.id === salaId; })[0];
-  var nome = document.getElementById('mob-edit-nome').value.trim();
-  var notas = document.getElementById('mob-edit-notas').value.trim();
-  if (!sala){ err.textContent = 'Escolhe a sala.'; return; }
-  if (!nome){ err.textContent = 'O nome não pode ficar vazio.'; return; }
-  var mudouSala = sala.id !== m.salaId;
-  m.salaId = sala.id; m.sala = sala.nome; m.nome = nome; m.notas = notas;
-  closeMobEdit_();
-  renderAllAdminTabs();
-  toast(mudouSala ? 'Movido para ' + sala.nome + '.' : 'Guardado.');
-  mobSave_(m);
-}
-(function bindMobEdit_(){
-  var modal = document.getElementById('mob-edit-modal');
-  if (!modal) return;
-  function on(id, ev, fn){ var el = document.getElementById(id); if (el) el.addEventListener(ev, fn); }
-  on('mob-edit-close', 'click', closeMobEdit_);
-  on('mob-edit-cancel', 'click', closeMobEdit_);
-  on('mob-edit-save', 'click', saveMobEdit_);
-  on('mob-edit-nome', 'keydown', function(ev){ if (ev.key === 'Enter'){ ev.preventDefault(); saveMobEdit_(); } });
-  modal.addEventListener('click', function(ev){ if (ev.target === modal) closeMobEdit_(); });
-  document.addEventListener('keydown', function(ev){
-    if (ev.key === 'Escape' && !modal.classList.contains('hidden')) closeMobEdit_();
-  });
-})();
 document.getElementById('mob-add').addEventListener('click', function(){
   var err = document.getElementById('mob-error'); err.textContent = '';
   var salaId = document.getElementById('mob-sala').value, nome = document.getElementById('mob-nome').value.trim();
@@ -4798,27 +5090,33 @@ function renderPcsTab(data){
     tr.children[0].textContent = c.nome;
     tr.children[1].textContent = c.sala || '—';
 
-    var sel = document.createElement('select');
-    sel.style.cssText = 'margin:0;width:auto;min-width:130px';
-    Object.keys(PC_ESTADOS_LABEL).forEach(function(k){
-      var o = document.createElement('option'); o.value = k; o.textContent = PC_ESTADOS_LABEL[k]; sel.appendChild(o);
-    });
-    sel.value = c.estado;
-    sel.addEventListener('change', function(){
-      c.estado = sel.value;
-      renderAllAdminTabs();
-      bgRun_('api_adminSetComputadorEstado', adminState.token, c.id, sel.value);
-    });
-    tr.children[2].appendChild(sel);
+    tr.children[2].textContent = PC_ESTADOS_LABEL[c.estado] || c.estado;
 
-    var ac = tr.children[3];
-    ac.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;border-bottom:0';
+    var ac = tableActionsCell_(tr, 3);
+    ac.appendChild(rowModalBtn_({
+      kicker: 'Computadores',
+      title: c.nome,
+      subtitle: (c.sala || 'Sem sala') + ' · ' + (PC_ESTADOS_LABEL[c.estado] || c.estado),
+      details: [
+        { label: 'Computador', value: c.nome, wide: true },
+        { label: 'Sala', value: c.sala || '—', wide: true },
+        { label: 'Estado', value: PC_ESTADOS_LABEL[c.estado] || c.estado },
+        { label: 'Criado em', value: c.criadoEm ? fmtDateTime(c.criadoEm) : '' }
+      ],
+      fields: [
+        { key: 'estado', label: 'Estado do posto', type: 'select', value: c.estado,
+          options: Object.keys(PC_ESTADOS_LABEL).map(function(k){ return { value: k, label: PC_ESTADOS_LABEL[k] }; }) }
+      ],
+      onSave: function(v){
+        c.estado = v.estado;
+        closeRowModal_();
+        renderAllAdminTabs();
+        toast('Estado atualizado.');
+        bgRun_('api_adminSetComputadorEstado', adminState.token, c.id, v.estado);
+      }
+    }, true));
 
-    var qrBtn = document.createElement('button');
-    qrBtn.type = 'button'; qrBtn.className = 'btn secondary'; qrBtn.textContent = '▦';
-    qrBtn.title = 'Ver / imprimir o QR deste computador';
-    qrBtn.style.cssText = 'margin:0;padding:4px 9px;font-size:12px';
-    qrBtn.addEventListener('click', function(){
+    var qrBtn = actBtn_('▦', 'Ver / imprimir o QR deste computador', '', function(){
       var existe = tr.nextElementSibling;
       if (existe && existe.classList.contains('pc-qrow')){ existe.parentNode.removeChild(existe); return; }
       var linha = document.createElement('tr'); linha.className = 'pc-qrow';
@@ -4835,16 +5133,12 @@ function renderPcsTab(data){
     });
     ac.appendChild(qrBtn);
 
-    var del = document.createElement('button');
-    del.type = 'button'; del.className = 'btn danger'; del.textContent = '✕'; del.title = 'Eliminar';
-    del.style.cssText = 'margin:0;padding:4px 9px;font-size:12px';
-    del.addEventListener('click', function(){
+    ac.appendChild(actBtn_('✕', 'Eliminar computador', 'danger', function(){
       if (!confirm('Eliminar "' + c.nome + '"? O histórico de utilizações mantém-se.')) return;
       dashCache.computadores = dashCache.computadores.filter(function(x){ return x.id !== c.id; });
       renderAllAdminTabs();
       bgRun_('api_adminDeleteComputador', adminState.token, c.id);
-    });
-    ac.appendChild(del);
+    }));
 
     tbody.appendChild(tr);
   });
@@ -4945,7 +5239,7 @@ function pcHistRender_(){
   tb.innerHTML = '';
   lista.forEach(function(s){
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>';
+    tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>';
     tr.children[0].textContent = pcHoraCurta_(s.inicio).split(' ')[0];
     tr.children[1].textContent = pcHoraCurta_(s.inicio).split(' ')[1] || '';
     tr.children[2].textContent = s.fim ? pcHoraCurta_(s.fim).split(' ')[1] : (s.estado === 'ativa' ? 'em curso' : '—');
@@ -4954,6 +5248,24 @@ function pcHistRender_(){
     tr.children[5].textContent = s.sala;
     tr.children[6].textContent = s.estado === 'ativa' ? '—' : (PC_MOTIVO_FIM[s.motivoFim] || s.motivoFim || '—');
     if (s.estado === 'ativa') tr.className = 'new-user';
+    tableActionsCell_(tr, 7).appendChild(rowModalBtn_({
+      kicker: 'Utilização de computadores',
+      title: s.aluno || 'Sessão',
+      subtitle: s.computador + ' · ' + s.sala,
+      details: [
+        { label: 'Data', value: pcHoraCurta_(s.inicio).split(' ')[0] },
+        { label: 'Início', value: pcHoraCurta_(s.inicio).split(' ')[1] || '—' },
+        { label: 'Fim previsto', value: s.fimPrevisto ? pcHoraCurta_(s.fimPrevisto).split(' ')[1] : '—' },
+        { label: 'Fim efetivo', value: s.fim ? pcHoraCurta_(s.fim).split(' ')[1] : (s.estado === 'ativa' ? 'Em curso' : '—') },
+        { label: 'Aluno', value: s.aluno || '—' },
+        { label: 'Perfil', value: roleLabel(s.alunoRole) },
+        { label: 'Computador', value: s.computador },
+        { label: 'Sala', value: s.sala },
+        { label: 'Estado', value: s.estado === 'ativa' ? 'Em curso' : (s.estado || '—') },
+        { label: 'Terminou por', value: s.estado === 'ativa' ? '—' : (PC_MOTIVO_FIM[s.motivoFim] || s.motivoFim || '—') },
+        { label: 'Origem', value: s.origem || '—' }
+      ]
+    }, false));
     tb.appendChild(tr);
   });
   var ativas = lista.filter(function(s){ return s.estado === 'ativa'; }).length;
@@ -4966,7 +5278,7 @@ function pcHistRender_(){
   tab.innerHTML = '';
   pcHist.aberturas.forEach(function(a){
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td><td></td>';
+    tr.innerHTML = '<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>';
     tr.children[0].textContent = pcHoraCurta_(a.inicio).split(' ')[0];
     tr.children[1].textContent = a.sala;
     tr.children[2].textContent = a.motivo || '—';
@@ -4974,6 +5286,24 @@ function pcHistRender_(){
     tr.children[4].textContent = pcHoraCurta_(a.inicio).split(' ')[1] || '';
     tr.children[5].textContent = a.fimPrevisto ? pcHoraCurta_(a.fimPrevisto).split(' ')[1] : '—';
     tr.children[6].textContent = a.fimEfetivo ? pcHoraCurta_(a.fimEfetivo).split(' ')[1] : (a.estado === 'aberta' ? 'em aberto' : '—');
+    tableActionsCell_(tr, 7).appendChild(rowModalBtn_({
+      kicker: 'Aberturas de sala',
+      title: a.sala,
+      subtitle: a.motivo || '—',
+      details: [
+        { label: 'Data', value: pcHoraCurta_(a.inicio).split(' ')[0] },
+        { label: 'Sala', value: a.sala },
+        { label: 'Motivo', value: a.motivo || '—', wide: true },
+        { label: 'Abriu', value: a.abriu || '—' },
+        { label: 'Perfil de quem abriu', value: roleLabel(a.abriuRole) },
+        { label: 'Início', value: pcHoraCurta_(a.inicio).split(' ')[1] || '—' },
+        { label: 'Fecho previsto', value: a.fimPrevisto ? pcHoraCurta_(a.fimPrevisto).split(' ')[1] : '—' },
+        { label: 'Fecho efetivo', value: a.fimEfetivo ? pcHoraCurta_(a.fimEfetivo).split(' ')[1] : 'Ainda aberta' },
+        { label: 'Estado', value: a.estado === 'aberta' ? 'Aberta' : (a.estado || '—') },
+        { label: 'Fechou', value: a.fechou || '—' },
+        { label: 'Perfil de quem fechou', value: roleLabel(a.fechouRole) }
+      ]
+    }, false));
     tab.appendChild(tr);
   });
   document.getElementById('pab-resumo').textContent = pcHist.aberturas.length + ' abertura(s) no mesmo período.';
@@ -5564,7 +5894,6 @@ document.getElementById('bug-success-close').addEventListener('click', bugFechar
 document.getElementById('bug-modal').addEventListener('click', function(e){ if (e.target === this) bugFechar_(); });
 document.addEventListener('keydown', function(e){
   if (e.key !== 'Escape') return;
-  if (bugVisivel_('bug-detail-modal')){ fecharBugDetalhes_(); return; }
   if (bugVisivel_('bug-modal')){ bugFechar_(); }
 });
 
