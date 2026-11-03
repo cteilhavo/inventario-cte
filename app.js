@@ -52,7 +52,7 @@ var API_URL = String(window.API_URL || '').trim();
 var API_TIMEOUT_MS = 30000;
 // Tem de coincidir com CODE_REV no Code.gs. Serve só de diagnóstico: se o servidor
 // publicado (ou a página em cache) estiver noutra versão, a pré-visualização avisa.
-var CODE_REV_ESPERADA = '2026-10-31-b';
+var CODE_REV_ESPERADA = '2026-11-03-a';
 (function verificarConfiguracao(){
   if (/^https:\/\/.+/.test(API_URL)) return;
   window.addEventListener('load', function(){
@@ -5278,7 +5278,8 @@ function pcHistRender_(){
         { label: 'Sala', value: s.sala },
         { label: 'Estado', value: s.estado === 'ativa' ? 'Em curso' : (s.estado || '—') },
         { label: 'Terminou por', value: s.estado === 'ativa' ? '—' : (PC_MOTIVO_FIM[s.motivoFim] || s.motivoFim || '—') },
-        { label: 'Origem', value: s.origem || '—' }
+        { label: 'Origem', value: s.origem || '—' },
+        { label: 'Iniciada por', value: s.iniciadoPor ? s.iniciadoPor + ' (em nome do aluno)' : '' }
       ]
     }, false));
     tb.appendChild(tr);
@@ -5473,6 +5474,7 @@ function pcBoot_(){
   document.getElementById('pc-sala-nome').textContent = '';
   document.getElementById('pc-pin-bloco').classList.add('hidden'); // só aparece depois de ler o posto
   document.getElementById('pc-ok').classList.add('hidden');
+  document.getElementById('pc-prof-bloco').classList.add('hidden');
   var est0 = document.getElementById('pc-estado'); est0.className = 'notice'; est0.textContent = 'A ler o estado da sala…';
   gsRunQ('api_pcInfo', pcState.id).then(function(info){
     if (!info || !info.ok){
@@ -5537,6 +5539,9 @@ function pcSubmeter_(){
     document.getElementById('pc-pin-bloco').classList.add('hidden');
     document.getElementById('pc-ok').classList.remove('hidden');
     document.getElementById('pc-ok-msg').textContent = res.renovada ? 'Sessão renovada.' : 'Sessão iniciada.';
+    document.getElementById('pc-terminar').classList.remove('hidden');
+    document.getElementById('pc-prof-nota').classList.add('hidden');
+    document.getElementById('pc-prof-sair-ok').classList.add('hidden');
     var sub = 'Termina automaticamente às ' + pcHora_(res.sessao.fimPrevisto) + '.';
     if (res.encerradas && res.encerradas.length) sub += ' A tua sessão anterior noutro computador foi fechada.';
     document.getElementById('pc-ok-sub').textContent = sub;
@@ -5559,6 +5564,179 @@ function pcTerminar_(){
 }
 
 document.getElementById('pc-terminar').addEventListener('click', pcTerminar_);
+
+/* ---- professor: iniciar sessão em nome de um aluno ----
+ * O professor lê o QR do computador, entra com o PIN e escolhe o aluno pelo nome.
+ * A sessão abre exatamente como se o aluno tivesse introduzido o PIN (mesmas regras de horário).
+ * Fica identificado 10 minutos neste dispositivo, para ler vários QR seguidos. */
+var PCPROF_KEY = 'cte-pcprof';
+var PCPROF_TTL_MS = 10 * 60 * 1000;
+var pcProf = { token: '', nome: '', alunos: null, busy: false };
+
+function pcProfGuardar_(){
+  try{ localStorage.setItem(PCPROF_KEY, JSON.stringify({ token: pcProf.token, nome: pcProf.nome, exp: Date.now() + PCPROF_TTL_MS })); }catch(e){}
+}
+function pcProfLer_(){
+  try{
+    var o = JSON.parse(localStorage.getItem(PCPROF_KEY) || 'null');
+    if (o && o.token && o.exp > Date.now()){ pcProf.token = o.token; pcProf.nome = o.nome || ''; return true; }
+    localStorage.removeItem(PCPROF_KEY);
+  }catch(e){}
+  return false;
+}
+function pcProfLimpar_(){
+  var t = pcProf.token;
+  pcProf.token = ''; pcProf.nome = ''; pcProf.alunos = null;
+  try{ localStorage.removeItem(PCPROF_KEY); }catch(e){}
+  if (t) gsRunQ('api_pcProfLogout', t).catch(function(){});
+}
+// parte: 'login' | 'alunos' | null (volta ao PIN do aluno)
+function pcProfMostrar_(parte){
+  document.getElementById('pc-prof-bloco').classList.toggle('hidden', !parte);
+  document.getElementById('pc-prof-login').classList.toggle('hidden', parte !== 'login');
+  document.getElementById('pc-prof-alunos').classList.toggle('hidden', parte !== 'alunos');
+  document.getElementById('pc-pin-bloco').classList.toggle('hidden', !!parte || !pcState.info);
+  document.getElementById('pc-ok').classList.add('hidden');
+  document.getElementById('pc-prof-erro').textContent = '';
+  document.getElementById('pc-prof-erro2').textContent = '';
+}
+function pcProfAbrir_(){
+  if (pcProf.token || pcProfLer_()) pcProfEntrar_();
+  else {
+    pcProfMostrar_('login');
+    var i = document.getElementById('pc-prof-pin'); i.value = '';
+    try{ i.focus(); }catch(e){}
+  }
+}
+function pcProfExpirou_(){
+  pcProfLimpar_();
+  pcProfMostrar_('login');
+  document.getElementById('pc-prof-erro').textContent = 'Sessão de professor expirada. Introduz o PIN outra vez.';
+}
+function pcProfEntrar_(){
+  pcProfMostrar_('alunos');
+  document.getElementById('pc-prof-quem').textContent = (pcProf.nome ? 'Professor: ' + pcProf.nome + '. ' : '') + 'Escolhe o aluno que vai usar este computador.';
+  var s = document.getElementById('pc-prof-search'); s.value = '';
+  if (pcProf.alunos){ pcProfRenderLista_(); try{ s.focus(); }catch(e){} return; }
+  document.getElementById('pc-prof-lista').innerHTML = '<p class="muted">A carregar alunos…</p>';
+  gsRunQ('api_pcProfAlunos', pcProf.token).then(function(res){
+    if (!res || !res.ok){
+      if (res && res.error === 'sessao_invalida'){ pcProfExpirou_(); return; }
+      document.getElementById('pc-prof-lista').innerHTML = '';
+      document.getElementById('pc-prof-erro2').textContent = 'Não foi possível carregar os alunos.';
+      return;
+    }
+    pcProf.alunos = res.alunos || [];
+    pcProfGuardar_();
+    pcProfRenderLista_();
+    try{ s.focus(); }catch(e){}
+  }).catch(function(){
+    document.getElementById('pc-prof-lista').innerHTML = '';
+    document.getElementById('pc-prof-erro2').textContent = 'Erro de ligação. Tenta outra vez.';
+  });
+}
+function pcProfRenderLista_(){
+  var box = document.getElementById('pc-prof-lista');
+  box.innerHTML = '';
+  var termos = fold(document.getElementById('pc-prof-search').value).trim().split(/\s+/).filter(Boolean);
+  var lista = (pcProf.alunos || []).filter(function(a){
+    var n = fold(a.nome);
+    return termos.every(function(t){ return n.indexOf(t) !== -1; });
+  });
+  var MAX = 40;
+  lista.slice(0, MAX).forEach(function(a){
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn secondary pc-aluno';
+    var n = document.createElement('span'); n.textContent = a.nome; b.appendChild(n);
+    if (a.role === 'coordenador_junior'){ var s = document.createElement('small'); s.textContent = 'coord. júnior'; b.appendChild(s); }
+    b.addEventListener('click', function(){ pcProfIniciar_(a); });
+    box.appendChild(b);
+  });
+  var nota = document.createElement('p'); nota.className = 'muted';
+  if (!lista.length) nota.textContent = (pcProf.alunos || []).length ? 'Nenhum aluno encontrado.' : 'Não há alunos registados.';
+  else if (lista.length > MAX) nota.textContent = 'A mostrar ' + MAX + ' de ' + lista.length + '. Escreve mais letras do nome.';
+  else nota.textContent = lista.length + ' aluno' + (lista.length === 1 ? '' : 's') + '.';
+  box.appendChild(nota);
+}
+function pcProfLogin_(){
+  if (pcProf.busy) return;
+  var inp = document.getElementById('pc-prof-pin'), erro = document.getElementById('pc-prof-erro');
+  var pin = inp.value.replace(/\D/g, '');
+  erro.textContent = '';
+  if (pin.length < 4){ erro.textContent = 'PIN demasiado curto.'; return; }
+  pcProf.busy = true; inp.disabled = true; document.getElementById('pc-prof-pin-submit').disabled = true;
+  function livre(){ pcProf.busy = false; inp.disabled = false; document.getElementById('pc-prof-pin-submit').disabled = false; }
+  gsRun('api_pcProfLogin', pcState.id, pin).then(function(res){
+    livre();
+    if (!res.ok){
+      inp.value = '';
+      if (res.locked){ erro.textContent = 'Demasiadas tentativas. Tenta daqui a ' + (res.lockSeconds || 60) + 's.'; return; }
+      if (res.inativo){ erro.textContent = 'Este utilizador está desativado.'; return; }
+      if (res.error === 'perfil_sem_permissao'){ erro.textContent = 'Só professores e a coordenação do CTE podem iniciar sessões em nome de alunos.'; return; }
+      if (res.attemptsLeft){ erro.textContent = 'PIN não reconhecido. Restam ' + res.attemptsLeft + ' tentativa' + (res.attemptsLeft === 1 ? '' : 's') + '.'; return; }
+      erro.textContent = 'Não foi possível entrar.';
+      return;
+    }
+    inp.value = '';
+    pcProf.token = res.token; pcProf.nome = res.nome || ''; pcProf.alunos = null;
+    pcProfGuardar_();
+    pcProfEntrar_();
+  }).catch(function(){ livre(); erro.textContent = 'Erro de ligação. Tenta outra vez.'; });
+}
+function pcProfIniciar_(a){
+  if (pcProf.busy) return;
+  var info = pcState.info || {};
+  var pcNome = info.computador ? info.computador.nome : 'este computador';
+  var aviso = 'Iniciar a sessão de ' + a.nome + ' em ' + pcNome + '?';
+  if (info.ocupadoPor) aviso += '\n\nAtenção: o computador está a ser usado por ' + info.ocupadoPor + '. Essa sessão termina.';
+  if (!confirm(aviso)) return;
+  var erro = document.getElementById('pc-prof-erro2');
+  erro.textContent = '';
+  pcProf.busy = true;
+  gsRun('api_pcProfAbrirSessao', pcProf.token, pcState.id, a.id).then(function(res){
+    pcProf.busy = false;
+    if (!res.ok){
+      if (res.error === 'sessao_invalida'){ pcProfExpirou_(); return; }
+      if (res.error === 'aluno_nao_encontrado'){ pcProf.alunos = null; pcProfEntrar_(); document.getElementById('pc-prof-erro2').textContent = 'Esse aluno já não está disponível. Lista atualizada.'; return; }
+      var m = {
+        sem_periodo: 'Esta sala está fechada. Abre-a primeiro pelo QR da mesa do professor.',
+        sem_janela: 'O período autorizado já terminou.',
+        computador_indisponivel: 'Este computador está fora de serviço.',
+        ocupado: 'O sistema está ocupado. Tenta outra vez.',
+        modulo_inativo: 'O registo de utilização está desligado.'
+      };
+      erro.textContent = m[res.error] || 'Não foi possível iniciar a sessão.';
+      return;
+    }
+    pcProfGuardar_();
+    document.getElementById('pc-prof-bloco').classList.add('hidden');
+    document.getElementById('pc-pin-bloco').classList.add('hidden');
+    document.getElementById('pc-ok').classList.remove('hidden');
+    document.getElementById('pc-ok-msg').textContent = 'Sessão de ' + a.nome + ' iniciada.';
+    var sub = 'Termina automaticamente às ' + pcHora_(res.sessao.fimPrevisto) + '.';
+    if (res.encerradas && res.encerradas.length) sub += ' Uma sessão anterior foi fechada.';
+    document.getElementById('pc-ok-sub').textContent = sub;
+    document.getElementById('pc-terminar').classList.add('hidden');
+    document.getElementById('pc-prof-nota').classList.remove('hidden');
+    document.getElementById('pc-prof-sair-ok').classList.remove('hidden');
+    playConfirmSound();
+  }).catch(function(){ pcProf.busy = false; erro.textContent = 'Erro de ligação. Confirma se a sessão abriu antes de repetir.'; });
+}
+function pcProfSair_(){
+  pcProfLimpar_();
+  pcBoot_();
+}
+document.getElementById('pc-prof-abrir').addEventListener('click', pcProfAbrir_);
+document.getElementById('pc-prof-pin-submit').addEventListener('click', pcProfLogin_);
+document.getElementById('pc-prof-pin').addEventListener('input', function(){
+  var v = this.value.replace(/\D/g, '').slice(0, 8);
+  if (v !== this.value) this.value = v;
+});
+document.getElementById('pc-prof-pin').addEventListener('keydown', function(e){ if (e.key === 'Enter'){ e.preventDefault(); pcProfLogin_(); } });
+document.getElementById('pc-prof-search').addEventListener('input', pcProfRenderLista_);
+document.getElementById('pc-prof-voltar').addEventListener('click', function(){ pcProfMostrar_(null); });
+document.getElementById('pc-prof-sair').addEventListener('click', pcProfSair_);
+document.getElementById('pc-prof-sair-ok').addEventListener('click', pcProfSair_);
 
 /* ============================================================
    ECRÃ DA MESA DO PROFESSOR (?sala=…)

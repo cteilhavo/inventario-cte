@@ -625,6 +625,10 @@
     .cm-chip{font-size:12px; padding:6px 10px}
     .cm-people-list{max-height:220px}
   }
+
+  /* mesa/posto: escolher aluno (modo professor) */
+  .pc-aluno{display:flex; justify-content:space-between; align-items:center; gap:8px; width:100%; margin:6px 0 0; text-align:left; padding:12px 14px; min-height:48px}
+  .pc-aluno small{color:var(--ink-faint); font-weight:500}
 </style>
 </head>
 <body>
@@ -717,6 +721,25 @@
       <input type="password" id="pc-pin-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" placeholder="Introduz o teu PIN" aria-label="PIN pessoal" aria-describedby="pc-erro">
       <button class="btn block" id="pc-pin-submit" type="button">Confirmar</button>
       <div class="error center" id="pc-erro" role="alert"></div>
+      <button class="btn secondary block" id="pc-prof-abrir" type="button" style="margin-top:14px">👩‍🏫 Sou professor: iniciar sessão em nome de um aluno</button>
+    </div>
+
+    <div id="pc-prof-bloco" class="hidden">
+      <div id="pc-prof-login">
+        <p class="subtitle">Introduz o teu PIN de professor.</p>
+        <input type="password" id="pc-prof-pin" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="8" placeholder="PIN de professor" aria-label="PIN de professor" aria-describedby="pc-prof-erro">
+        <button class="btn block" id="pc-prof-pin-submit" type="button">Confirmar</button>
+        <div class="error center" id="pc-prof-erro" role="alert"></div>
+      </div>
+      <div id="pc-prof-alunos" class="hidden">
+        <p class="muted" id="pc-prof-quem"></p>
+        <label for="pc-prof-search">Aluno</label>
+        <input type="text" id="pc-prof-search" placeholder="🔍 Escreve o nome do aluno…" autocomplete="off" aria-label="Pesquisar aluno">
+        <div id="pc-prof-lista"></div>
+        <div class="error center" id="pc-prof-erro2" role="alert"></div>
+      </div>
+      <button class="btn secondary block" id="pc-prof-voltar" type="button">← Voltar</button>
+      <button class="btn secondary block" id="pc-prof-sair" type="button">Sair do modo professor</button>
     </div>
 
     <div id="pc-ok" class="hidden">
@@ -724,6 +747,8 @@
       <p class="center" id="pc-ok-msg"></p>
       <p class="muted center" id="pc-ok-sub"></p>
       <button class="btn secondary block" id="pc-terminar" type="button">Terminar sessão</button>
+      <p class="muted center hidden" id="pc-prof-nota">Para outro computador, lê o respetivo QR: continuas identificado durante 10 minutos.</p>
+      <button class="btn secondary block hidden" id="pc-prof-sair-ok" type="button">Sair do modo professor</button>
     </div>
   </div>
 
