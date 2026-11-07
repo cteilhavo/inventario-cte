@@ -562,7 +562,7 @@ function resetDoneBtn_(){
 
 var kioskData = null;
 
-function isProfKiosk_(){ return !!(kioskState.user && (kioskState.user.role === 'professor' || kioskState.user.role === 'coordenador_cte')); }
+function isProfKiosk_(){ return !!(kioskState.user && kioskState.user.role === 'professor'); }
 function showChoice(){
   renderKioskNotices_();
   document.getElementById('btn-go-prof').classList.toggle('hidden', !(isProfKiosk_() && kioskData && kioskData.appUrl));
@@ -5391,7 +5391,17 @@ document.getElementById('pc-criar').addEventListener('click', function(){
 document.getElementById('pc-imprimir-lista').addEventListener('click', function(){
   var lista = pcFiltrados_();
   if (!lista.length){ toast('Não há computadores para imprimir com estes filtros.'); return; }
-  pcImprimirEtiquetas_(lista.map(function(c){ return { nome: c.nome, sub: c.sala, url: pcUrlComputador_(c.id) }; }));
+  var comMesa = document.getElementById('pc-incluir-mesa').checked;
+  var itens = [], salasVistas = {};
+  lista.forEach(function(c){
+    // a etiqueta da mesa do professor entra uma vez por sala, antes dos computadores dessa sala
+    if (comMesa && c.salaId && !salasVistas[c.salaId]){
+      salasVistas[c.salaId] = true;
+      itens.push({ nome: 'Mesa do professor', sub: c.sala, url: pcUrlSala_(c.salaId), grande: true });
+    }
+    itens.push({ nome: c.nome, sub: c.sala, url: pcUrlComputador_(c.id) });
+  });
+  pcImprimirEtiquetas_(itens);
 });
 
 document.getElementById('pc-mesa-gerar').addEventListener('click', function(){
@@ -5492,16 +5502,6 @@ function pcBoot_(){
     document.getElementById('pc-nome').textContent = info.computador.nome;
     document.getElementById('pc-sala-nome').textContent = info.computador.sala || '';
     var est2 = document.getElementById('pc-estado');
-    // Computador inativo ou em manutenção: só o aviso, sem PIN e sem modo professor.
-    var estadoPc = String(info.computador.estado || 'ativo');
-    if (estadoPc !== 'ativo'){
-      est2.className = 'notice late';
-      est2.textContent = '⛔ Este computador está desativado' + (estadoPc === 'manutencao' ? ' (em manutenção)' : '') + ' e não pode ser usado.';
-      document.getElementById('pc-pin-bloco').classList.add('hidden');
-      document.getElementById('pc-prof-bloco').classList.add('hidden');
-      document.getElementById('pc-ok').classList.add('hidden');
-      return;
-    }
     est2.textContent = pcEstadoTexto_(info);
     est2.className = 'notice' + ((!info.periodo && !info.aberta) ? ' late' : '');
     document.getElementById('pc-ok').classList.add('hidden');
