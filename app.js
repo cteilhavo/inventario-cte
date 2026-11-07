@@ -5492,6 +5492,16 @@ function pcBoot_(){
     document.getElementById('pc-nome').textContent = info.computador.nome;
     document.getElementById('pc-sala-nome').textContent = info.computador.sala || '';
     var est2 = document.getElementById('pc-estado');
+    // Computador inativo ou em manutenção: só o aviso, sem PIN e sem modo professor.
+    var estadoPc = String(info.computador.estado || 'ativo');
+    if (estadoPc !== 'ativo'){
+      est2.className = 'notice late';
+      est2.textContent = '⛔ Este computador está desativado' + (estadoPc === 'manutencao' ? ' (em manutenção)' : '') + ' e não pode ser usado.';
+      document.getElementById('pc-pin-bloco').classList.add('hidden');
+      document.getElementById('pc-prof-bloco').classList.add('hidden');
+      document.getElementById('pc-ok').classList.add('hidden');
+      return;
+    }
     est2.textContent = pcEstadoTexto_(info);
     est2.className = 'notice' + ((!info.periodo && !info.aberta) ? ' late' : '');
     document.getElementById('pc-ok').classList.add('hidden');
