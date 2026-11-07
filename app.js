@@ -5391,17 +5391,7 @@ document.getElementById('pc-criar').addEventListener('click', function(){
 document.getElementById('pc-imprimir-lista').addEventListener('click', function(){
   var lista = pcFiltrados_();
   if (!lista.length){ toast('Não há computadores para imprimir com estes filtros.'); return; }
-  var comMesa = document.getElementById('pc-incluir-mesa').checked;
-  var itens = [], salasVistas = {};
-  lista.forEach(function(c){
-    // a etiqueta da mesa do professor entra uma vez por sala, antes dos computadores dessa sala
-    if (comMesa && c.salaId && !salasVistas[c.salaId]){
-      salasVistas[c.salaId] = true;
-      itens.push({ nome: 'Mesa do professor', sub: c.sala, url: pcUrlSala_(c.salaId), grande: true });
-    }
-    itens.push({ nome: c.nome, sub: c.sala, url: pcUrlComputador_(c.id) });
-  });
-  pcImprimirEtiquetas_(itens);
+  pcImprimirEtiquetas_(lista.map(function(c){ return { nome: c.nome, sub: c.sala, url: pcUrlComputador_(c.id) }; }));
 });
 
 document.getElementById('pc-mesa-gerar').addEventListener('click', function(){
@@ -6045,11 +6035,36 @@ function bugOrigem_(){
   if (bugVisivel_('scr-done')) return 'Quiosque · confirmação' + (cab ? ' · ' + cab : '');
   return 'Quiosque';
 }
+// Traduz o "user agent" para palavras normais: "Chrome 157, em Windows 10 ou 11 (computador)".
+function bugNavegador_(){
+  var ua = String(navigator.userAgent || '');
+  if (!ua) return '—';
+  var m, nome = 'Browser desconhecido', ver = '';
+  if ((m = /Edg(?:e|A|iOS)?\/(\d+)/.exec(ua))){ nome = 'Microsoft Edge'; ver = m[1]; }
+  else if ((m = /OPR\/(\d+)/.exec(ua))){ nome = 'Opera'; ver = m[1]; }
+  else if ((m = /SamsungBrowser\/(\d+)/.exec(ua))){ nome = 'Samsung Internet'; ver = m[1]; }
+  else if ((m = /(?:Firefox|FxiOS)\/(\d+)/.exec(ua))){ nome = 'Firefox'; ver = m[1]; }
+  else if ((m = /(?:Chrome|CriOS)\/(\d+)/.exec(ua))){ nome = 'Chrome'; ver = m[1]; }
+  else if ((m = /Version\/(\d+).*Safari/.exec(ua))){ nome = 'Safari'; ver = m[1]; }
+  var so = 'sistema desconhecido';
+  if (/Windows NT 10\.0/.test(ua)) so = 'Windows 10 ou 11';
+  else if (/Windows NT/.test(ua)) so = 'Windows (versão antiga)';
+  else if ((m = /Android (\d+)/.exec(ua))) so = 'Android ' + m[1];
+  else if (/Android/.test(ua)) so = 'Android';
+  else if (/iPhone|iPad|iPod/.test(ua)) so = 'iOS (Apple)';
+  else if (/Mac OS X/.test(ua)) so = 'macOS (Mac)';
+  else if (/CrOS/.test(ua)) so = 'Chromebook';
+  else if (/Linux/.test(ua)) so = 'Linux';
+  var tipo = /iPad|Tablet/i.test(ua) || (/Android/.test(ua) && !/Mobile/.test(ua)) ? 'tablet'
+    : (/Mobi|iPhone|iPod|Android/.test(ua) ? 'telemóvel' : 'computador');
+  return nome + (ver ? ' ' + ver : '') + ', em ' + so + ' (' + tipo + ')';
+}
 function bugContexto_(){
   return [
     'Endereço: ' + location.origin + location.pathname + location.search,
     'Ecrã: ' + bugOrigem_(),
-    'Browser: ' + (navigator.userAgent || '—'),
+    'Browser: ' + bugNavegador_(),
+    'Detalhe técnico: ' + (navigator.userAgent || '—'),
     'Idioma: ' + (navigator.language || '—'),
     'Janela: ' + window.innerWidth + '×' + window.innerHeight + ' (densidade ' + (window.devicePixelRatio || 1) + 'x)',
     'Tema: ' + currentTheme(),
