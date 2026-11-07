@@ -562,7 +562,7 @@ function resetDoneBtn_(){
 
 var kioskData = null;
 
-function isProfKiosk_(){ return !!(kioskState.user && kioskState.user.role === 'professor'); }
+function isProfKiosk_(){ return !!(kioskState.user && (kioskState.user.role === 'professor' || kioskState.user.role === 'coordenador_cte')); }
 function showChoice(){
   renderKioskNotices_();
   document.getElementById('btn-go-prof').classList.toggle('hidden', !(isProfKiosk_() && kioskData && kioskData.appUrl));
