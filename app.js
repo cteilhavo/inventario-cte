@@ -52,7 +52,7 @@ var API_URL = String(window.API_URL || '').trim();
 var API_TIMEOUT_MS = 30000;
 // Tem de coincidir com CODE_REV no Code.gs. Serve só de diagnóstico: se o servidor
 // publicado (ou a página em cache) estiver noutra versão, a pré-visualização avisa.
-var CODE_REV_ESPERADA = '2026-11-03-a';
+var CODE_REV_ESPERADA = '2026-11-15-a';
 (function verificarConfiguracao(){
   if (/^https:\/\/.+/.test(API_URL)) return;
   window.addEventListener('load', function(){
@@ -97,14 +97,59 @@ function _call_(quiet, name, args, timeoutMs){
       var dados = null;
       try { dados = JSON.parse(txt); } catch (e) { throw new Error('resposta_invalida'); }
       if (!dados || dados.ok !== true) throw new Error((dados && dados.error) || 'erro_api');
+      // Sessão expirada no servidor: qualquer ecrã volta ao PIN / entrada, em vez de ficar a falhar em silêncio.
+      if (dados.dados && dados.dados.error === 'sessao_invalida') setTimeout(function(){ sessaoInvalidaGlobal_(name); }, 0);
       return dados.dados;
     });
   }).then(function(v){ fim(); return v; }, function(e){ fim(); throw e; });
+}
+function sessaoInvalidaGlobal_(name){
+  try{
+    if (/^api_admin/.test(name)){
+      var dash = document.getElementById('scr-admin-dash');
+      if (adminState.token && dash && !dash.classList.contains('hidden')){
+        adminState.token = '';
+        toast('Sessão expirada. Inicia sessão outra vez.');
+        showAdmin('scr-admin-login');
+      }
+    } else if (/^api_prof/.test(name)){
+      if (profState.token) profExpired_();
+    } else if (/^api_kiosk/.test(name)){
+      if (kioskState.token){
+        kioskState.token = '';
+        toast('Sessão expirada. Introduz o PIN outra vez.');
+        logoutKiosk();
+      }
+    }
+  } catch (e) { /* nunca deixa a app presa por causa deste aviso */ }
 }
 function gsRun(name){ return _call_(!!QUIET_[name], name, Array.prototype.slice.call(arguments, 1)); }
 function gsRunQ(name){ return _call_(true, name, Array.prototype.slice.call(arguments, 1)); }
 // Operações que podem demorar minutos no Apps Script (importar, comunicados, migrar PINs, cópia).
 function gsRunLong_(name){ return _call_(true, name, Array.prototype.slice.call(arguments, 1), 300000); }
+
+/* ---- identificador do dispositivo (limites de tentativas por dispositivo, no servidor) ----
+ * UUID aleatório guardado neste browser; enviado como ÚLTIMO argumento das chamadas que validam PIN ou password. */
+var _devIdMem = '';
+var MSG_ATRASO_GLOBAL = 'Muitas tentativas na escola. Aguarda uns segundos.';
+function dispositivoId_(){
+  var re = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  var id = '';
+  try { id = localStorage.getItem('cte-dev') || ''; } catch (e) {}
+  if (!re.test(id)){
+    id = (_devIdMem && re.test(_devIdMem)) ? _devIdMem : novoPedidoId_();
+    try { localStorage.setItem('cte-dev', id); } catch (e) {}
+  }
+  _devIdMem = id;
+  return id;
+}
+// "45s", "2 min", "15 min": o tempo de espera de um bloqueio, em palavras.
+function fmtEspera_(seg){
+  seg = Math.max(1, Math.ceil(Number(seg) || 60));
+  return seg <= 120 ? seg + 's' : Math.ceil(seg / 60) + ' min';
+}
+// Atraso global do servidor (sem bloqueio): avisa que a espera é normal.
+function avisoAtraso_(res){ if (res && !res.ok && res.atrasoGlobal) toast(MSG_ATRASO_GLOBAL); }
 
 function toast(msg){
   var t = document.getElementById('toast');
@@ -477,7 +522,8 @@ function submitPin(){
   document.getElementById('pin-error').textContent = '';
   if (pinBusy) return;
   setPinBusy_(true);
-  gsRun('api_kioskLogin', kioskState.pin, kioskState.cabinetId).then(function(res){
+  gsRun('api_kioskLogin', kioskState.pin, kioskState.cabinetId, dispositivoId_()).then(function(res){
+    avisoAtraso_(res);
     if (res.locked || res.inativo || !res.ok) setPinBusy_(false); // (o bloqueio por tentativas volta a desativar o teclado)
     if (res.locked){
       startPinLock(res.lockSeconds || 60);
@@ -513,7 +559,7 @@ function startPinLock(seconds){
   var errorEl = document.getElementById('pin-error');
   clearInterval(pinLockInterval);
   function tick(){
-    errorEl.textContent = 'Demasiadas tentativas erradas. Tenta outra vez daqui a ' + remaining + 's.';
+    errorEl.textContent = 'Demasiadas tentativas erradas. Tenta outra vez daqui a ' + fmtEspera_(remaining) + '.';
     hint.textContent = '';
     remaining--;
     if (remaining < 0){
@@ -1036,7 +1082,7 @@ document.getElementById('setup-submit').addEventListener('click', function(){
   if (p1.length < 8){ err.textContent = 'A password tem de ter pelo menos 8 carateres.'; return; }
   if (p1 !== p2){ err.textContent = 'As passwords não coincidem.'; return; }
   btn.disabled = true; // evita dois pedidos com Enter repetido
-  gsRun('api_adminSetup', p1).then(function(res){
+  gsRun('api_adminSetup', p1, dispositivoId_()).then(function(res){
     if (!res.ok){ btn.disabled = false; err.textContent = 'Não foi possível definir a password.'; return; }
     adminState.token = res.token;
     enterDashboard();
@@ -1050,10 +1096,11 @@ document.getElementById('login-submit').addEventListener('click', function(){
   err.textContent = '';
   if (!pw){ err.textContent = 'Escreve a password.'; return; }
   btn.disabled = true;
-  gsRun('api_adminLogin', pw).then(function(res){
+  gsRun('api_adminLogin', pw, dispositivoId_()).then(function(res){
+    avisoAtraso_(res);
     if (!res.ok){
       btn.disabled = false;
-      if (res.locked){ err.textContent = 'Demasiadas tentativas erradas. Tenta outra vez daqui a ' + Math.round((res.lockSeconds || 300) / 60) + ' minutos.'; return; }
+      if (res.locked){ err.textContent = 'Demasiadas tentativas erradas. Tenta outra vez daqui a ' + fmtEspera_(res.lockSeconds || 300) + '.'; return; }
       err.textContent = res.attemptsLeft ? 'Password incorreta. Restam ' + res.attemptsLeft + ' tentativa' + (res.attemptsLeft === 1 ? '' : 's') + '.' : 'Password incorreta.';
       return;
     }
@@ -2741,7 +2788,7 @@ function renderNotifyLog_(){
       td0.colSpan = 6; td0.className = 'muted'; td0.textContent = 'Ainda não houve nenhuma tentativa de envio.';
       tr0.appendChild(td0); tbody.appendChild(tr0); return;
     }
-    var tipos = { danificado: 'danificado', stock_baixo: 'stock baixo', teste: 'teste', pin: 'PIN', resumo: 'resumo semanal', backup: 'cópia de segurança', pedido: 'pedido de requisição', atraso: 'lembrete de atraso', feedback: 'feedback de professor', bug: 'bug do sistema' };
+    var tipos = { danificado: 'danificado', stock_baixo: 'stock baixo', teste: 'teste', pin: 'PIN', resumo: 'resumo semanal', backup: 'cópia de segurança', pedido: 'pedido de requisição', atraso: 'lembrete de atraso', feedback: 'feedback de professor', bug: 'bug do sistema', seguranca: 'segurança', sistema: 'sistema (reserva duradoura)' };
     var resultados = { enviado: '✅ enviado', erro: '❌ erro', ignorado: '⚠️ ignorado' };
     res.log.forEach(function(l){
       var tr = document.createElement('tr');
@@ -4094,9 +4141,10 @@ function profLogin_(){
   err.textContent = '';
   if (pin.length < 4){ err.textContent = 'PIN demasiado curto.'; return; }
   btn.disabled = true;
-  gsRun('api_profLogin', pin).then(function(res){
+  gsRun('api_profLogin', pin, dispositivoId_()).then(function(res){
+    avisoAtraso_(res);
     btn.disabled = false;
-    if (res.locked){ err.textContent = 'Demasiadas tentativas erradas. Tenta outra vez daqui a ' + (res.lockSeconds || 60) + 's.'; return; }
+    if (res.locked){ err.textContent = 'Demasiadas tentativas erradas. Tenta outra vez daqui a ' + fmtEspera_(res.lockSeconds || 60) + '.'; return; }
     if (res.inativo){ err.textContent = 'Este utilizador está desativado. Fala com o responsável.'; pinEl.value = ''; return; }
     if (res.naoProfessor){ err.textContent = 'Esta área é só para professores.'; pinEl.value = ''; return; }
     if (!res.ok){
@@ -5518,11 +5566,12 @@ function pcSubmeter_(){
   var info = pcState.info || {};
   if (info.ocupadoPor && !confirm('Este computador está a ser usado por ' + info.ocupadoPor + '.\n\nContinuar? A sessão dessa pessoa termina.')) return;
   pcBloquearTeclado_(true);
-  gsRun('api_pcAbrirSessao', pcState.id, pcState.pin).then(function(res){
+  gsRun('api_pcAbrirSessao', pcState.id, pcState.pin, dispositivoId_()).then(function(res){
+    avisoAtraso_(res);
     pcBloquearTeclado_(false);
     if (!res.ok){
       pcState.pin = ''; pcPintarDots_();
-      if (res.locked){ erro.textContent = 'Demasiadas tentativas. Tenta daqui a ' + (res.lockSeconds || 60) + 's.'; return; }
+      if (res.locked){ erro.textContent = 'Demasiadas tentativas. Tenta daqui a ' + fmtEspera_(res.lockSeconds || 60) + '.'; return; }
       if (res.attemptsLeft){ erro.textContent = 'PIN não reconhecido. Restam ' + res.attemptsLeft + ' tentativa' + (res.attemptsLeft === 1 ? '' : 's') + '.'; return; }
       var m = {
         sem_periodo: 'Esta sala está fechada. Pede a um professor ou ao coordenador do CTE para abrir a sala.',
@@ -5556,7 +5605,7 @@ function pcTerminar_(){
   var btn = document.getElementById('pc-terminar');
   if (!pcState.pin){ pcBoot_(); return; }
   btn.disabled = true;
-  gsRun('api_pcFecharSessao', pcState.id, pcState.pin).then(function(){
+  gsRun('api_pcFecharSessao', pcState.id, pcState.pin, dispositivoId_()).then(function(){
     btn.disabled = false;
     pcState.pin = '';
     pcBoot_();
@@ -5666,11 +5715,12 @@ function pcProfLogin_(){
   if (pin.length < 4){ erro.textContent = 'PIN demasiado curto.'; return; }
   pcProf.busy = true; inp.disabled = true; document.getElementById('pc-prof-pin-submit').disabled = true;
   function livre(){ pcProf.busy = false; inp.disabled = false; document.getElementById('pc-prof-pin-submit').disabled = false; }
-  gsRun('api_pcProfLogin', pcState.id, pin).then(function(res){
+  gsRun('api_pcProfLogin', pcState.id, pin, dispositivoId_()).then(function(res){
+    avisoAtraso_(res);
     livre();
     if (!res.ok){
       inp.value = '';
-      if (res.locked){ erro.textContent = 'Demasiadas tentativas. Tenta daqui a ' + (res.lockSeconds || 60) + 's.'; return; }
+      if (res.locked){ erro.textContent = 'Demasiadas tentativas. Tenta daqui a ' + fmtEspera_(res.lockSeconds || 60) + '.'; return; }
       if (res.inativo){ erro.textContent = 'Este utilizador está desativado.'; return; }
       if (res.error === 'perfil_sem_permissao'){ erro.textContent = 'Só professores e a coordenação do CTE podem iniciar sessões em nome de alunos.'; return; }
       if (res.attemptsLeft){ erro.textContent = 'PIN não reconhecido. Restam ' + res.attemptsLeft + ' tentativa' + (res.attemptsLeft === 1 ? '' : 's') + '.'; return; }
@@ -5871,11 +5921,12 @@ function salaSubmeter_(){
   erro.textContent = '';
   if (salaState.pin.length < 4){ erro.textContent = 'PIN demasiado curto.'; return; }
   salaState.busy = true;
-  gsRun('api_salaLogin', salaState.id, salaState.pin).then(function(res){
+  gsRun('api_salaLogin', salaState.id, salaState.pin, dispositivoId_()).then(function(res){
+    avisoAtraso_(res);
     salaState.busy = false;
     if (!res.ok){
       salaState.pin = ''; salaPintarDots_();
-      if (res.locked){ erro.textContent = 'Demasiadas tentativas. Tenta daqui a ' + (res.lockSeconds || 60) + 's.'; return; }
+      if (res.locked){ erro.textContent = 'Demasiadas tentativas. Tenta daqui a ' + fmtEspera_(res.lockSeconds || 60) + '.'; return; }
       if (res.attemptsLeft){ erro.textContent = 'PIN não reconhecido. Restam ' + res.attemptsLeft + ' tentativa' + (res.attemptsLeft === 1 ? '' : 's') + '.'; return; }
       erro.textContent = 'Não foi possível entrar.';
       return;
